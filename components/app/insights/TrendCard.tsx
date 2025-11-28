@@ -1,51 +1,37 @@
-// components/app/insights/TrendCard.tsx
 import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
-import type { SentimentResult } from "@/lib/analytics/sentiment";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { SentimentBar } from "./SentimentBar";
 
 type Props = {
   title: string;
-  sentiment: SentimentResult | null;
-  isLocked?: boolean;
+  analysis: {
+    sentiment_percent: number;
+    sentiment_label: string;
+  } | null;
   onPress?: () => void;
 };
 
-export const TrendCard: React.FC<Props> = ({
-  title,
-  sentiment,
-  isLocked = false,
-  onPress,
-}) => {
-  const label =
-    !sentiment || sentiment.score === 0
-      ? "Carregando dados..."
-      : `${sentiment.score > 0 ? "+" : ""}${sentiment.score}% • ${
-          sentiment.label
-        }`;
+export const TrendCard: React.FC<Props> = ({ title, analysis, onPress }) => {
+  const label = !analysis
+    ? "Carregando..."
+    : `${analysis.sentiment_percent > 0 ? "+" : ""}${analysis.sentiment_percent}% • ${analysis.sentiment_label}`;
 
   return (
-    <TouchableOpacity
-      activeOpacity={isLocked ? 1 : 0.8}
-      onPress={isLocked ? undefined : onPress}
-      style={[styles.card, isLocked && styles.cardLocked]}
-    >
-      <Text
-        style={[styles.title, isLocked && styles.textLocked]}
-        numberOfLines={2}
-      >
-        {title}
-      </Text>
+    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.8}>
+      <Text style={styles.title}>{title}</Text>
+      <Text style={styles.subtitle}>{label}</Text>
 
-      <Text
-        style={[styles.subtitle, isLocked && styles.textLocked]}
-        numberOfLines={1}
-      >
-        {label}
-      </Text>
-
-      {sentiment && (
-        <SentimentBar score={sentiment.score} bucket={sentiment.bucket} />
+      {analysis && (
+        <SentimentBar
+          score={analysis.sentiment_percent}
+          bucket={
+            analysis.sentiment_label === "otimista"
+              ? "positive"
+              : analysis.sentiment_label === "cauteloso"
+              ? "negative"
+              : "neutral"
+          }
+        />
       )}
     </TouchableOpacity>
   );
@@ -54,28 +40,14 @@ export const TrendCard: React.FC<Props> = ({
 const styles = StyleSheet.create({
   card: {
     flexBasis: "48%",
-    padding: 14,
-    borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.03)",
+    padding: 16,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.04)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
-    minHeight: 110,
+    borderColor: "rgba(255,255,255,0.08)",
+    minHeight: 120,
     justifyContent: "space-between",
   },
-  cardLocked: {
-    backgroundColor: "rgba(255,255,255,0.02)",
-  },
-  title: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#FFFFFF",
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontSize: 12,
-    color: "rgba(255,255,255,0.6)",
-  },
-  textLocked: {
-    color: "rgba(255,255,255,0.4)",
-  },
+  title: { color: "#fff", fontSize: 15, fontWeight: "600" },
+  subtitle: { color: "#aaa", fontSize: 12, marginTop: 6 },
 });

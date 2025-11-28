@@ -10,7 +10,7 @@ import {
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { BlurView } from "expo-blur";
 import Icon from "@/components/ui/Icon";
-import { TimelineMonth } from "@/app/subscriptions/finance";
+import { TimelineMonth } from "@/app/finance";
 
 type Props = {
   months: TimelineMonth[];

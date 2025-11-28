@@ -1,63 +1,54 @@
-// components/app/insights/SentimentBar.tsx
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
-import type { SentimentBucket } from "@/lib/analytics/sentiment";
 
 type Props = {
-  score: number; // -100 a +100
-  bucket: SentimentBucket;
+  score: number; 
+  bucket: "positive" | "neutral" | "negative";
 };
 
 export const SentimentBar: React.FC<Props> = ({ score, bucket }) => {
-  const left = `${(score + 100) / 2}%`; // -100 → 0%, +100 → 100%
+  const percent = (score + 10) * 5; // -10 = 0%, 10 = 100%
 
   return (
     <View style={styles.container}>
-      <Text style={styles.label}>Pessimista</Text>
+      <Text style={styles.label}>Cautela</Text>
+
       <View style={styles.track}>
         <View
           style={[
             styles.thumb,
-            bucket === "positive" && styles.thumbPositive,
-            bucket === "neutral" && styles.thumbNeutral,
-            bucket === "negative" && styles.thumbNegative,
-            { left },
+            bucket === "positive" && styles.positive,
+            bucket === "neutral" && styles.neutral,
+            bucket === "negative" && styles.negative,
+            { left: `${percent}%` },
           ]}
         />
       </View>
-      <Text style={styles.label}>Otimista</Text>
+
+      <Text style={styles.label}>Otimismo</Text>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    marginTop: 8,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  label: {
-    fontSize: 10,
-    color: "rgba(255,255,255,0.5)",
-  },
+  container: { flexDirection: "row", alignItems: "center", marginTop: 8 },
+  label: { fontSize: 10, color: "rgba(255,255,255,0.5)" },
   track: {
     flex: 1,
     height: 4,
-    marginHorizontal: 6,
+    marginHorizontal: 8,
+    backgroundColor: "rgba(255,255,255,0.1)",
     borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.08)",
     position: "relative",
-    overflow: "hidden",
   },
   thumb: {
     position: "absolute",
-    top: -4,
+    top: -5,
     width: 14,
     height: 14,
     borderRadius: 7,
-    backgroundColor: "#FFFFFF",
   },
-  thumbPositive: { backgroundColor: "#4ECB71" },
-  thumbNeutral: { backgroundColor: "#8A8FFF" },
-  thumbNegative: { backgroundColor: "#FF5C5C" },
+  positive: { backgroundColor: "#4ECB71" },
+  neutral: { backgroundColor: "#8A8FFF" },
+  negative: { backgroundColor: "#FF5C5C" },
 });

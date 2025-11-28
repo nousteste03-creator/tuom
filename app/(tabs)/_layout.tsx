@@ -49,9 +49,9 @@ export default function TabsLayout() {
         }}
       />
 
-      {/* INSIGHTS (antes: aprender) */}
+      {/* INSIGHTS */}
       <Tabs.Screen
-        name="education"
+        name="insights"
         options={{
           title: "Insights",
           tabBarIcon: ({ color }) => (
@@ -60,11 +60,11 @@ export default function TabsLayout() {
         }}
       />
 
-      {/* FINANÇAS (antes: config) */}
+      {/* FINANÇAS */}
       <Tabs.Screen
         name="finance"
         options={{
-          title: "Finance",
+          title: "Finanças",
           tabBarIcon: ({ color }) => (
             <Icon name="stats-chart-outline" color={color} size={22} />
           ),

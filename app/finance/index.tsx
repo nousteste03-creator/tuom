@@ -1,4 +1,4 @@
-// app/subscriptions/finance.tsx
+// app/finance/index.tsx
 import { useState } from "react";
 import {
   View,
@@ -15,19 +15,25 @@ import Icon from "@/components/ui/Icon";
 import { useFinance } from "@/hooks/useFinance";
 import { useCategories } from "@/hooks/useCategories";
 import { useGoals } from "@/hooks/useGoals";
+import { useUserPlan } from "@/hooks/useUserPlan";
+
 import CategoryCard from "@/components/app/finance/CategoryCard";
+import WaveBlock from "@/components/app/finance/WaveBlock";
+import BudgetBlock from "@/components/app/finance/BudgetBlock";
+import ToolsBlock from "@/components/app/finance/ToolsBlock";
 
 import CategoryCreateModal from "@/components/app/finance/CategoryCreateModal";
 import CategoryEditModal from "@/components/app/finance/CategoryEditModal";
 
 import { useRouter } from "expo-router";
 
+// FONT
 const brandFont = Platform.select({
   ios: "SF Pro Display",
   default: "System",
 });
 
-// Função ASCII minimalista
+// ASCII
 function asciiBar(progress: number) {
   const blocks = ["▁", "▂", "▃", "▄", "▅", "▆", "█"];
   const index = Math.min(
@@ -40,23 +46,14 @@ function asciiBar(progress: number) {
 export default function FinanceScreen() {
   const router = useRouter();
 
-  const {
-    totalIncome,
-    totalExpenses,
-    subsTotal,
-    balance,
-    insight,
-    openFinanceEnabled,
-  } = useFinance();
+  const { totalIncome, totalExpenses, subsTotal, balance, insight } = useFinance();
 
-  const {
-    categories,
-    createCategory,
-    updateCategory,
-    deleteCategory,
-  } = useCategories();
+  const { categories, createCategory, updateCategory, deleteCategory } =
+    useCategories();
 
   const { mainGoal, secondaryGoals } = useGoals();
+
+  const { isPremium } = useUserPlan();
 
   const [openCreate, setOpenCreate] = useState(false);
   const [openEdit, setOpenEdit] = useState<any>(null);
@@ -86,7 +83,7 @@ export default function FinanceScreen() {
           contentContainerStyle={{
             paddingHorizontal: 20,
             paddingTop: 20,
-            paddingBottom: 140,
+            paddingBottom: 160,
             gap: 26,
           }}
         >
@@ -140,7 +137,7 @@ export default function FinanceScreen() {
             </View>
           </View>
 
-          {/* PAINEL FINANCEIRO */}
+          {/* -------- PAINEL FINANCEIRO -------- */}
           <View
             style={{
               borderRadius: 22,
@@ -155,7 +152,7 @@ export default function FinanceScreen() {
               Painel Financeiro NÖUS 007
             </Text>
 
-            {/* NOVO BOTÃO — HISTÓRICO  */}
+            {/* HISTÓRICO */}
             <TouchableOpacity
               activeOpacity={0.85}
               onPress={() => router.push("/finance/history")}
@@ -332,7 +329,12 @@ export default function FinanceScreen() {
             </View>
           </View>
 
-          {/* CATEGORIAS */}
+          {/* ---------- BLOCOS PREMIUM ---------- */}
+          <WaveBlock isPremium={isPremium} />
+          <BudgetBlock isPremium={isPremium} />
+          <ToolsBlock isPremium={isPremium} />
+
+          {/* ---------- CATEGORIAS ---------- */}
           <Section title="Categorias (ranking automático)">
             {categoriesWithSubscriptions.map((c) => (
               <TouchableOpacity
@@ -374,7 +376,7 @@ export default function FinanceScreen() {
             </TouchableOpacity>
           </Section>
 
-          {/* METAS & RESERVAS */}
+          {/* ---------- METAS ---------- */}
           <Section title="Metas & reservas">
             {!mainGoal && secondaryGoals.length === 0 && (
               <Text style={{ color: "#6B7280", fontSize: 13 }}>
@@ -476,42 +478,6 @@ export default function FinanceScreen() {
               </View>
             )}
           </Section>
-
-          {/* CTA OPEN FINANCE */}
-          {!openFinanceEnabled && (
-            <TouchableOpacity
-              activeOpacity={0.9}
-              style={{
-                padding: 16,
-                borderRadius: 18,
-                borderWidth: 1,
-                borderColor: "rgba(255,255,255,0.12)",
-                backgroundColor: "rgba(255,255,255,0.04)",
-              }}
-            >
-              <Text
-                style={{
-                  color: "#FFF",
-                  fontSize: 16,
-                  fontWeight: "600",
-                  marginBottom: 6,
-                }}
-              >
-                Conectar Open Finance
-              </Text>
-
-              <Text
-                style={{
-                  color: "#9CA3AF",
-                  fontSize: 12,
-                  lineHeight: 18,
-                }}
-              >
-                Veja automaticamente entradas, saídas, categorias e tendências
-                em tempo real.
-              </Text>
-            </TouchableOpacity>
-          )}
         </ScrollView>
 
         {/* MODAIS */}

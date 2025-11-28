@@ -1,5 +1,4 @@
-// app/insights/news/[id].tsx
-import React, { useEffect, useState, useMemo } from "react";
+import React from "react";
 import {
   View,
   Text,
@@ -7,68 +6,37 @@ import {
   ScrollView,
   Image,
   TouchableOpacity,
-  ActivityIndicator,
   Linking,
+  StatusBar,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams, router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useLocalSearchParams, router } from "expo-router";
 
-import { fetchNewsDetail } from "@/lib/api/news";
-
-/* ---------------- CLEANER ---------------- */
-
-function cleanNewsContent(raw?: string): string {
-  if (!raw) return "";
-
-  let text = raw.replace(/\s+/g, " ").trim();
-  if (text.length > 5000) text = text.slice(0, 5000);
-
-  const chunks = text.split(/(?<=[.!?])\s+/);
-  const cleaned: string[] = [];
-
-  for (const chunk of chunks) {
-    const c = chunk.trim();
-    if (!c) continue;
-
-    const lower = c.toLowerCase();
-    const words = c.split(/\s+/).length;
-    const commas = (c.match(/,/g) || []).length;
-
-    if (words > 120 && commas > 15) continue; // menus gigantes
-    if (/(english|español|deutsch|中文|bahasa|português \(portugal\))/i.test(c))
-      continue;
-    if (/(login|cadastre|registre|privacy|terms|política)/i.test(lower))
-      continue;
-    if (c.length > 200 && !/[.!?]/.test(c)) continue;
-
-    cleaned.push(c);
-    if (cleaned.length >= 6) break;
-  }
-
-  return cleaned.join(" ");
-}
+/* ---------------- UTILS ---------------- */
 
 function formatTimeAgo(publishedAt?: string) {
   if (!publishedAt) return "";
-  const date = new Date(publishedAt).getTime();
-  if (Number.isNaN(date)) return "";
-  const diffMin = Math.floor((Date.now() - date) / 60000);
+  const t = new Date(publishedAt).getTime();
+  if (Number.isNaN(t)) return "";
+
+  const diffMin = Math.floor((Date.now() - t) / 60000);
+
   if (diffMin < 60) return `${diffMin}min atrás`;
   const hours = Math.floor(diffMin / 60);
   const days = Math.floor(hours / 24);
+
   if (days >= 1) return `${days}d atrás`;
-  const rest = diffMin % 60;
-  return rest === 0 ? `${hours}h atrás` : `${hours}h${rest} atrás`;
+
+  return `${hours}h atrás`;
 }
 
 /* ---------------- SCREEN ---------------- */
 
-export default function NewsDetailScreen() {
+export default function NewsDetailCinematic() {
   const insets = useSafeAreaInsets();
 
   const params = useLocalSearchParams<{
-    id?: string;
     title?: string;
     source?: string;
     imageUrl?: string;
@@ -76,120 +44,89 @@ export default function NewsDetailScreen() {
     publishedAt?: string;
   }>();
 
-  const [detail, setDetail] = useState<{ url: string; content: string } | null>(
-    null
-  );
-  const [loading, setLoading] = useState(true);
-
   const title = params.title ?? "";
   const source =
     !params.source || params.source.toLowerCase().includes("desconhecid")
       ? "NÖUS Insights"
       : params.source;
+
   const img = params.imageUrl;
-  const publishedAt = params.publishedAt;
-  const originalUrl = params.url ?? params.id ?? detail?.url;
+  const url = params.url;
+  const time = formatTimeAgo(params.publishedAt);
 
-  const cleaned = useMemo(
-    () => cleanNewsContent(detail?.content),
-    [detail?.content]
-  );
+  /* ===== Fallback de resumo curto ===== */
+  const fallbackSummary =
+    "Essa matéria não disponibilizou uma descrição completa. Toque abaixo para ler a versão original.";
 
-  useEffect(() => {
-    let cancel = false;
-
-    async function load() {
-      try {
-        if (!originalUrl) {
-          setLoading(false);
-          return;
-        }
-        const res = await fetchNewsDetail(originalUrl);
-        if (!cancel && res) setDetail({ url: res.url, content: res.content });
-      } catch {
-        if (!cancel) setDetail(null);
-      } finally {
-        if (!cancel) setLoading(false);
-      }
-    }
-
-    load();
-    return () => {
-      cancel = true;
-    };
-  }, [originalUrl]);
+  const summary = fallbackSummary;
 
   function openFull() {
-    if (!originalUrl) return;
-    Linking.openURL(detail?.url || originalUrl).catch(() => {});
+    if (!url) return;
+    Linking.openURL(url).catch(() => {});
   }
 
   return (
     <View style={styles.container}>
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={{ paddingBottom: 50 }}
-        showsVerticalScrollIndicator={false}
+      <StatusBar barStyle="light-content" />
+
+      {/* TOPBAR FIXA */}
+      <View
+        style={[
+          styles.topBar,
+          {
+            paddingTop: insets.top + 6,
+          },
+        ]}
       >
-        {/* -------- TOPBAR FIX COM SAFE AREA -------- */}
-        <View style={[styles.topBar, { paddingTop: insets.top + 6 }]}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            activeOpacity={0.7}
-            style={styles.backButton}
-          >
-            <Ionicons name="chevron-back" size={22} color="#fff" />
-          </TouchableOpacity>
+        <TouchableOpacity
+          activeOpacity={0.7}
+          onPress={() => router.back()}
+          style={styles.backButton}
+        >
+          <Ionicons name="chevron-back" size={22} color="#fff" />
+        </TouchableOpacity>
 
-          <Text style={styles.topTitle}>Notícia</Text>
-          <View style={{ width: 32 }} />
-        </View>
+        <Text style={styles.topTitle}>Notícia</Text>
+        <View style={{ width: 32 }} />
+      </View>
 
-        {/* -------- HEADER (metade imagem / metade texto) -------- */}
-        <View style={styles.headerRow}>
-          <Image
-            source={{ uri: img }}
-            style={styles.headerImage}
-            resizeMode="cover"
-          />
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{
+          paddingBottom: 80,
+        }}
+      >
+        {/* HERO CINEMATIC */}
+        <View style={styles.heroWrapper}>
+          {img ? (
+            <Image
+              source={{ uri: img }}
+              style={styles.heroImage}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={styles.heroFallback} />
+          )}
 
-          <View style={styles.headerText}>
-            <Text style={styles.appName}>NÖUS</Text>
-            <Text style={styles.appSection}>Insights</Text>
+          <View style={styles.heroGradient} />
+
+          <View style={styles.heroMeta}>
+            <Text style={styles.heroSource}>{source}</Text>
+            {time ? <Text style={styles.heroTime}>{time}</Text> : null}
+          </View>
+
+          <View style={styles.heroTitleBox}>
+            <Text style={styles.heroTitle}>{title}</Text>
           </View>
         </View>
 
-        {/* META */}
-        <View style={styles.metaRow}>
-          <Text style={styles.metaSource}>{source}</Text>
-          {publishedAt && (
-            <Text style={styles.metaTime}>{formatTimeAgo(publishedAt)}</Text>
-          )}
+        {/* SUMMARY BLOCK */}
+        <View style={styles.summaryCard}>
+          <Text style={styles.summaryText}>{summary}</Text>
         </View>
 
-        {/* TITLE */}
-        <Text style={styles.title}>{title}</Text>
-
-        {/* CONTENT BOX */}
-        <View style={styles.contentCard}>
-          {loading ? (
-            <View style={styles.loadingRow}>
-              <ActivityIndicator color="#fff" />
-              <Text style={styles.loadingText}>
-                Extraindo conteúdo da matéria...
-              </Text>
-            </View>
-          ) : cleaned ? (
-            <Text style={styles.body}>{cleaned}</Text>
-          ) : (
-            <Text style={styles.bodyMuted}>
-              Não conseguimos extrair o texto limpo dessa matéria.
-            </Text>
-          )}
-        </View>
-
-        {/* FULL BUTTON */}
-        {originalUrl && (
+        {/* FULL ARTICLE BUTTON */}
+        {url && (
           <TouchableOpacity style={styles.fullButton} onPress={openFull}>
             <Text style={styles.fullButtonText}>Ler matéria completa</Text>
             <Ionicons
@@ -208,129 +145,119 @@ export default function NewsDetailScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#050507" },
-  scroll: { paddingHorizontal: 20 },
 
-  /* TOP */
+  /* TOPBAR */
   topBar: {
-    marginBottom: 18,
+    zIndex: 99,
+    paddingBottom: 6,
+    paddingHorizontal: 20,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-  },
-  backButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "rgba(255,255,255,0.06)",
-    alignItems: "center",
-    justifyContent: "center",
+    backgroundColor: "#050507",
   },
   topTitle: {
     fontSize: 18,
     fontWeight: "600",
     color: "#fff",
   },
-
-  /* HEADER */
-  headerRow: {
-    marginTop: 4,
-    flexDirection: "row",
-    marginBottom: 20,
+  backButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(255,255,255,0.10)",
     alignItems: "center",
-  },
-  headerImage: {
-    width: "50%",
-    height: 120,
-    borderRadius: 20,
-    marginRight: 14,
-  },
-  headerText: {
-    width: "50%",
     justifyContent: "center",
   },
 
-  /* Fonte fina e premium */
-  appName: {
-    fontSize: 22,
-    fontWeight: "500",
-    letterSpacing: 0.6,
-    color: "#ffffff",
+  /* HERO */
+  heroWrapper: {
+    width: "100%",
+    height: 280,
+    borderBottomLeftRadius: 26,
+    borderBottomRightRadius: 26,
+    overflow: "hidden",
+    backgroundColor: "#000",
   },
-  appSection: {
-    fontSize: 18,
-    fontWeight: "400",
-    marginTop: 4,
-    letterSpacing: 0.3,
-    color: "rgba(255,255,255,0.85)",
+  heroImage: {
+    width: "100%",
+    height: "100%",
+    position: "absolute",
   },
-
-  /* META */
-  metaRow: {
-    flexDirection: "row",
-    gap: 10,
-    marginBottom: 14,
+  heroFallback: {
+    width: "100%",
+    height: "100%",
+    backgroundColor: "rgba(255,255,255,0.05)",
   },
-  metaSource: {
-    fontSize: 13,
-    color: "rgba(255,255,255,0.75)",
-  },
-  metaTime: {
-    fontSize: 13,
-    color: "rgba(255,255,255,0.5)",
+  heroGradient: {
+    position: "absolute",
+    width: "100%",
+    height: "100%",
+    backgroundColor: "rgba(0,0,0,0.35)",
   },
 
-  /* TITLE */
-  title: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: "#fff",
-    marginBottom: 16,
+  heroMeta: {
+    position: "absolute",
+    top: 20,
+    left: 20,
   },
-
-  /* CONTENT */
-  contentCard: {
-    backgroundColor: "rgba(255,255,255,0.03)",
-    borderRadius: 24,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
-  },
-  loadingRow: {
-    flexDirection: "row",
-    gap: 10,
-    alignItems: "center",
-  },
-  loadingText: {
+  heroSource: {
     fontSize: 14,
-    color: "rgba(255,255,255,0.7)",
+    color: "rgba(255,255,255,0.85)",
+    fontWeight: "500",
   },
-  body: {
+  heroTime: {
+    marginTop: 2,
+    fontSize: 13,
+    color: "rgba(255,255,255,0.6)",
+  },
+
+  heroTitleBox: {
+    position: "absolute",
+    bottom: 22,
+    width: "100%",
+    paddingHorizontal: 20,
+  },
+  heroTitle: {
+    fontSize: 22,
+    lineHeight: 28,
+    fontWeight: "700",
+    color: "#fff",
+  },
+
+  /* SUMMARY */
+  summaryCard: {
+    marginTop: 24,
+    marginHorizontal: 20,
+    padding: 18,
+    borderRadius: 22,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  summaryText: {
     fontSize: 15,
     lineHeight: 22,
-    color: "rgba(255,255,255,0.90)",
-  },
-  bodyMuted: {
-    fontSize: 14,
-    lineHeight: 22,
-    color: "rgba(255,255,255,0.60)",
+    color: "rgba(255,255,255,0.92)",
   },
 
-  /* BUTTON */
+  /* FULL BUTTON */
   fullButton: {
-    marginTop: 24,
+    marginTop: 26,
     alignSelf: "center",
     flexDirection: "row",
     gap: 8,
     paddingVertical: 12,
-    paddingHorizontal: 22,
+    paddingHorizontal: 24,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.15)",
-    backgroundColor: "rgba(255,255,255,0.06)",
+    borderColor: "rgba(255,255,255,0.18)",
+    backgroundColor: "rgba(255,255,255,0.07)",
+    alignItems: "center",
   },
   fullButtonText: {
     fontSize: 15,
+    color: "#fff",
     fontWeight: "500",
-    color: "rgba(255,255,255,0.95)",
   },
 });

@@ -1,7 +1,7 @@
 // components/app/finance/MonthSummaryCard.tsx
 import { View, Text } from "react-native";
 import { BlurView } from "expo-blur";
-import { TimelineMonth } from "@/app/subscriptions/finance";
+import { TimelineMonth } from "@/app/finance";
 import RowValue from "./RowValue";
 
 const currencyFormatter = new Intl.NumberFormat("pt-BR", {
