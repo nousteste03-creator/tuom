@@ -1,4 +1,3 @@
-// app/finance/index.tsx
 import { useState } from "react";
 import {
   View,
@@ -6,69 +5,78 @@ import {
   ScrollView,
   Platform,
   TouchableOpacity,
+  RefreshControl,
 } from "react-native";
 
 import Screen from "@/components/layout/Screen";
-import Section from "@/components/layout/Section";
 import Icon from "@/components/ui/Icon";
 
 import { useFinance } from "@/hooks/useFinance";
-import { useCategories } from "@/hooks/useCategories";
+import { useBudget } from "@/hooks/useBudget";
 import { useGoals } from "@/hooks/useGoals";
 import { useUserPlan } from "@/hooks/useUserPlan";
 
-import CategoryCard from "@/components/app/finance/CategoryCard";
 import WaveBlock from "@/components/app/finance/WaveBlock";
 import BudgetBlock from "@/components/app/finance/BudgetBlock";
 import ToolsBlock from "@/components/app/finance/ToolsBlock";
 
-import CategoryCreateModal from "@/components/app/finance/CategoryCreateModal";
-import CategoryEditModal from "@/components/app/finance/CategoryEditModal";
-
 import { useRouter } from "expo-router";
 
-// FONT
 const brandFont = Platform.select({
   ios: "SF Pro Display",
   default: "System",
 });
 
-// ASCII
+// ASCII bar
 function asciiBar(progress: number) {
   const blocks = ["▁", "▂", "▃", "▄", "▅", "▆", "█"];
-  const index = Math.min(
-    blocks.length - 1,
-    Math.floor(progress * (blocks.length - 1))
-  );
-  return blocks[index];
+  const idx = Math.min(blocks.length - 1, Math.floor(progress * (blocks.length - 1)));
+  return blocks[idx];
 }
 
 export default function FinanceScreen() {
   const router = useRouter();
 
-  const { totalIncome, totalExpenses, subsTotal, balance, insight } = useFinance();
+  const { 
+    subsTotal, 
+    balance,
+    totalIncome,
+    totalExpenses,
+    insight,
+    reload: reloadFinance 
+  } = useFinance();
 
-  const { categories, createCategory, updateCategory, deleteCategory } =
-    useCategories();
+  const {
+    totalExpenses: budgetMonthTotal,
+    reload: reloadBudget
+  } = useBudget();
 
-  const { mainGoal, secondaryGoals } = useGoals();
+  const {
+    mainGoal,
+    secondaryGoals,
+    reload: reloadGoals
+  } = useGoals();
 
-  const { isPremium } = useUserPlan();
+  const {
+    isPremium,
+    reload: reloadPlan
+  } = useUserPlan();
 
-  const [openCreate, setOpenCreate] = useState(false);
-  const [openEdit, setOpenEdit] = useState<any>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const categoriesWithSubscriptions = [
-    {
-      id: "subscriptions",
-      title: "Assinaturas",
-      amount: subsTotal,
-      type: "subscription" as const,
-    },
-    ...categories,
-  ];
+  async function onRefresh() {
+    setRefreshing(true);
+    await Promise.all([
+      reloadFinance?.(),
+      reloadBudget?.(),
+      reloadGoals?.(),
+      reloadPlan?.(),
+    ]);
+    setRefreshing(false);
+  }
 
-  const annualProjection = totalExpenses * 12;
+  const combinedExpenses = budgetMonthTotal + subsTotal;
+  const annualProjection = combinedExpenses * 12;
 
   const currency = (v: number) =>
     new Intl.NumberFormat("pt-BR", {
@@ -77,34 +85,52 @@ export default function FinanceScreen() {
     }).format(v);
 
   return (
-    <Screen>
-      <View style={{ flex: 1, backgroundColor: "#000" }}>
+    <Screen style={{ backgroundColor: "#0A0A0C" }}>
+      <View style={{ flex: 1 }}>
         <ScrollView
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor="#FFF"
+              colors={["#FFF"]}
+              progressBackgroundColor="#000"
+            />
+          }
           contentContainerStyle={{
-            paddingHorizontal: 20,
-            paddingTop: 20,
-            paddingBottom: 160,
-            gap: 26,
+            paddingHorizontal: 22,
+            paddingTop: 28,
+            paddingBottom: 180,
+            gap: 32,
           }}
         >
-          {/* HEADER */}
+
+          {/* HEADER ------------------------------------------------ */}
           <View
             style={{
               flexDirection: "row",
               justifyContent: "space-between",
-              alignItems: "center",
+              alignItems: "flex-start",
             }}
           >
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: "#6B7280", fontSize: 13 }}>Finanças</Text>
+            <View style={{ flex: 1, paddingRight: 12 }}>
+              <Text
+                style={{
+                  color: "rgba(255,255,255,0.35)",
+                  fontSize: 12,
+                  letterSpacing: 0.8,
+                }}
+              >
+                Finanças
+              </Text>
 
               <Text
                 style={{
                   color: "#FFF",
-                  fontSize: 22,
+                  fontSize: 28,
                   fontWeight: "700",
                   fontFamily: brandFont ?? undefined,
-                  marginTop: 4,
+                  marginTop: 2,
                 }}
               >
                 Painel financeiro
@@ -112,32 +138,35 @@ export default function FinanceScreen() {
 
               <Text
                 style={{
-                  color: "#4B5563",
-                  fontSize: 12,
-                  marginTop: 4,
+                  color: "rgba(255,255,255,0.45)",
+                  fontSize: 13,
+                  marginTop: 6,
+                  lineHeight: 20,
                 }}
               >
-                Controle premium do seu mês — estilo NÖUS 007.
+                O hub completo do seu mês — versão NÖUS PRO.
               </Text>
             </View>
 
             <View
               style={{
-                width: 32,
-                height: 32,
-                borderRadius: 16,
-                backgroundColor: "rgba(255,255,255,0.06)",
+                width: 44,
+                height: 44,
+                borderRadius: 22,
+                backgroundColor: "rgba(255,255,255,0.05)",
                 borderWidth: 1,
-                borderColor: "rgba(255,255,255,0.10)",
+                borderColor: "rgba(255,255,255,0.08)",
                 justifyContent: "center",
                 alignItems: "center",
               }}
             >
-              <Icon name="pie-chart-outline" size={16} color="#FFF" />
+              <Icon name="pie-chart-outline" size={20} color="#FFF" />
             </View>
           </View>
 
-          {/* -------- PAINEL FINANCEIRO -------- */}
+          {/* ======================== PAINEL FINANCEIRO ======================== */}
+          {/* *** ESTE BLOCO É O ÚNICO MANTIDO NO DESIGN ORIGINAL *** */}
+
           <View
             style={{
               borderRadius: 22,
@@ -149,10 +178,10 @@ export default function FinanceScreen() {
             }}
           >
             <Text style={{ color: "#9CA3AF", fontSize: 12 }}>
-              Painel Financeiro NÖUS 007
+              Painel Financeiro NÖUS
             </Text>
 
-            {/* HISTÓRICO */}
+            {/* Histórico */}
             <TouchableOpacity
               activeOpacity={0.85}
               onPress={() => router.push("/finance/history")}
@@ -173,7 +202,6 @@ export default function FinanceScreen() {
                   color: "#E5E7EB",
                   fontSize: 13,
                   fontWeight: "500",
-                  fontFamily: brandFont ?? undefined,
                 }}
               >
                 Histórico financeiro
@@ -182,23 +210,11 @@ export default function FinanceScreen() {
               <Icon name="chevron-forward" size={16} color="#9CA3AF" />
             </TouchableOpacity>
 
-            {/* Entradas / Saídas */}
-            <View
-              style={{
-                flexDirection: "row",
-                justifyContent: "space-between",
-                gap: 12,
-              }}
-            >
+            {/* Entradas / saídas */}
+            <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12 }}>
               <View style={{ flex: 1 }}>
                 <Text style={{ color: "#6B7280", fontSize: 11 }}>Entradas</Text>
-                <Text
-                  style={{
-                    color: "#E5E7EB",
-                    fontSize: 15,
-                    fontWeight: "600",
-                  }}
-                >
+                <Text style={{ color: "#E5E7EB", fontSize: 15, fontWeight: "600" }}>
                   {currency(totalIncome)}
                 </Text>
               </View>
@@ -206,23 +222,18 @@ export default function FinanceScreen() {
               <View style={{ flex: 1, alignItems: "flex-end" }}>
                 <Text style={{ color: "#6B7280", fontSize: 11 }}>Saídas</Text>
 
-                <Text
-                  style={{
-                    color: "#FCA5A5",
-                    fontSize: 15,
-                    fontWeight: "600",
-                  }}
-                >
-                  {currency(totalExpenses)}
+                <Text style={{ color: "#FCA5A5", fontSize: 15, fontWeight: "600" }}>
+                  {currency(combinedExpenses)}
                 </Text>
               </View>
             </View>
 
-            {/* Saldo projetado */}
+            {/* Saldo */}
             <View style={{ marginTop: 2 }}>
               <Text style={{ color: "#6B7280", fontSize: 11 }}>
                 Saldo projetado do mês
               </Text>
+
               <Text
                 style={{
                   color: balance >= 0 ? "#A7F3D0" : "#FCA5A5",
@@ -234,7 +245,7 @@ export default function FinanceScreen() {
               </Text>
             </View>
 
-            {/* Linha ghost */}
+            {/* Linha */}
             <View
               style={{
                 marginTop: 8,
@@ -246,21 +257,13 @@ export default function FinanceScreen() {
 
             {/* Projeção anual */}
             <View style={{ alignItems: "center", marginTop: 2 }}>
-              <Text style={{ color: "#6B7280", fontSize: 11 }}>
-                Projeção anual
-              </Text>
-              <Text
-                style={{
-                  color: "#E5E7EB",
-                  fontSize: 15,
-                  fontWeight: "600",
-                }}
-              >
+              <Text style={{ color: "#6B7280", fontSize: 11 }}>Projeção anual</Text>
+              <Text style={{ color: "#E5E7EB", fontSize: 15, fontWeight: "600" }}>
                 {currency(annualProjection)}
               </Text>
             </View>
 
-            {/* Insight da Pila */}
+            {/* Insight Pila */}
             <View
               style={{
                 marginTop: 12,
@@ -271,39 +274,20 @@ export default function FinanceScreen() {
                 backgroundColor: "rgba(0,0,0,0.85)",
               }}
             >
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 6,
-                  marginBottom: 6,
-                }}
-              >
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 }}>
                 <Icon name="sparkles-outline" size={14} color="#FFF" />
-
-                <Text
-                  style={{
-                    color: "#9CA3AF",
-                    fontSize: 11,
-                    fontWeight: "600",
-                  }}
-                >
+                <Text style={{ color: "#9CA3AF", fontSize: 11, fontWeight: "600" }}>
                   Pila analisou seu mês
                 </Text>
               </View>
 
-              <Text
-                style={{
-                  color: "#D1D5DB",
-                  fontSize: 12,
-                  lineHeight: 18,
-                }}
-              >
+              <Text style={{ color: "#D1D5DB", fontSize: 12, lineHeight: 18 }}>
                 {insight}
               </Text>
 
               <TouchableOpacity
                 activeOpacity={0.9}
+                onPress={() => router.push("/pila/chat")}
                 style={{
                   marginTop: 10,
                   alignSelf: "flex-start",
@@ -314,108 +298,66 @@ export default function FinanceScreen() {
                   borderColor: "rgba(148,163,184,0.9)",
                   backgroundColor: "rgba(15,23,42,0.85)",
                 }}
-                onPress={() => router.push("/pila/chat")}
               >
-                <Text
-                  style={{
-                    color: "#E5E7EB",
-                    fontSize: 12,
-                    fontWeight: "600",
-                  }}
-                >
+                <Text style={{ color: "#E5E7EB", fontSize: 12, fontWeight: "600" }}>
                   Conversar com a Pila
                 </Text>
               </TouchableOpacity>
             </View>
           </View>
 
-          {/* ---------- BLOCOS PREMIUM ---------- */}
+          {/* ===================== BLOCOS PREMIUM ====================== */}
           <WaveBlock isPremium={isPremium} />
           <BudgetBlock isPremium={isPremium} />
           <ToolsBlock isPremium={isPremium} />
 
-          {/* ---------- CATEGORIAS ---------- */}
-          <Section title="Categorias (ranking automático)">
-            {categoriesWithSubscriptions.map((c) => (
-              <TouchableOpacity
-                key={c.id}
-                activeOpacity={0.85}
-                onPress={() => {
-                  if (c.id === "subscriptions") return;
-                  setOpenEdit(c);
-                }}
-              >
-                <CategoryCard
-                  title={c.title}
-                  amount={c.amount}
-                  type={c.type}
-                />
-              </TouchableOpacity>
-            ))}
-
-            <TouchableOpacity
-              activeOpacity={0.9}
+          {/* =========================== METAS =========================== */}
+          <View style={{ marginTop: 10 }}>
+            <Text
               style={{
-                marginTop: 12,
-                padding: 12,
-                borderRadius: 999,
-                backgroundColor: "#FFF",
-                alignItems: "center",
+                color: "#FFF",
+                fontSize: 20,
+                fontWeight: "700",
+                fontFamily: brandFont ?? undefined,
+                marginBottom: 6,
               }}
-              onPress={() => setOpenCreate(true)}
             >
+              Metas & Reservas
+            </Text>
+
+            {!mainGoal && secondaryGoals.length === 0 && (
               <Text
                 style={{
-                  color: "#000",
+                  color: "rgba(255,255,255,0.40)",
                   fontSize: 14,
-                  fontWeight: "600",
                 }}
               >
-                Adicionar categoria
-              </Text>
-            </TouchableOpacity>
-          </Section>
-
-          {/* ---------- METAS ---------- */}
-          <Section title="Metas & reservas">
-            {!mainGoal && secondaryGoals.length === 0 && (
-              <Text style={{ color: "#6B7280", fontSize: 13 }}>
                 Nenhuma meta criada ainda.
               </Text>
             )}
 
+            {/* Meta principal */}
             {mainGoal && (
-              <View style={{ marginTop: 6, gap: 4 }}>
-                <Text
-                  style={{
-                    color: "#E5E7EB",
-                    fontSize: 15,
-                    fontWeight: "600",
-                  }}
-                >
+              <View style={{ marginTop: 16, gap: 6 }}>
+                <Text style={{ color: "#FFF", fontSize: 15, fontWeight: "600" }}>
                   Meta principal
                 </Text>
 
-                <Text
-                  style={{
-                    color: "#9CA3AF",
-                    fontSize: 14,
-                    fontFamily: brandFont ?? undefined,
-                  }}
-                >
-                  {mainGoal.title} {".".repeat(22)}{" "}
+                <Text style={{ color: "#A1A1AA", fontSize: 14 }}>
+                  {mainGoal.title}{" "}
+                  {".".repeat(20)}{" "}
                   {Math.round(
                     (mainGoal.current_amount / mainGoal.target_amount) * 100
                   )}
-                  % concluída
+                  %
                 </Text>
 
                 <Text
                   style={{
                     color: "#9CA3AF",
-                    fontSize: 24,
+                    fontSize: 26,
                     letterSpacing: 1,
-                    marginTop: 2,
+                    marginTop: 4,
                     fontWeight: "300",
                   }}
                 >
@@ -430,15 +372,10 @@ export default function FinanceScreen() {
               </View>
             )}
 
+            {/* Secundárias */}
             {secondaryGoals.length > 0 && (
-              <View style={{ marginTop: 16, gap: 6 }}>
-                <Text
-                  style={{
-                    color: "#E5E7EB",
-                    fontSize: 15,
-                    fontWeight: "600",
-                  }}
-                >
+              <View style={{ marginTop: 22, gap: 10 }}>
+                <Text style={{ color: "#FFF", fontSize: 15, fontWeight: "600" }}>
                   Metas secundárias
                 </Text>
 
@@ -450,15 +387,9 @@ export default function FinanceScreen() {
                   return (
                     <Text
                       key={g.id}
-                      style={{
-                        color: "#9CA3AF",
-                        fontSize: 14,
-                        fontFamily: brandFont ?? undefined,
-                      }}
+                      style={{ color: "#9CA3AF", fontSize: 14 }}
                     >
-                      • {g.title}
-                      {" ".repeat(30 - g.title.length)}
-                      {pct}%
+                      • {g.title} {Array.from({ length: 30 - g.title.length }).join(" ")} {pct}%
                     </Text>
                   );
                 })}
@@ -472,30 +403,13 @@ export default function FinanceScreen() {
                       textDecorationLine: "underline",
                     }}
                   >
-                    (ver metas completas)
+                    ver metas completas
                   </Text>
                 </TouchableOpacity>
               </View>
             )}
-          </Section>
+          </View>
         </ScrollView>
-
-        {/* MODAIS */}
-        <CategoryCreateModal
-          visible={openCreate}
-          onClose={() => setOpenCreate(false)}
-          onCreate={createCategory}
-        />
-
-        <CategoryEditModal
-          visible={!!openEdit}
-          category={openEdit}
-          onClose={() => setOpenEdit(null)}
-          onSave={(updated) =>
-            updateCategory(updated.id, updated)
-          }
-          onDelete={(id) => deleteCategory(id)}
-        />
       </View>
     </Screen>
   );

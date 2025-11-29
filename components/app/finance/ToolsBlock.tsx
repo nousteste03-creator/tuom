@@ -29,7 +29,7 @@ export default function ToolsBlock({ isPremium }: Props) {
           backgroundColor: "rgba(15,15,15,0.45)",
         }}
       >
-        {/* TÍTULO DA SEÇÃO */}
+        {/* HEADER */}
         <Text
           style={{
             color: "#FFF",
@@ -48,54 +48,75 @@ export default function ToolsBlock({ isPremium }: Props) {
             marginBottom: 20,
           }}
         >
-          Recurso premium para controle financeiro completo.
+          Módulos completos para controle financeiro real.
         </Text>
 
-        {/* CARDS */}
+        {/* LISTA */}
         <View style={{ gap: 16 }}>
           <ToolCard
             title="Patrimônio Líquido"
-            description={
-              isPremium
-                ? "Acompanhe seus ativos, dívidas e evolução mensal."
-                : "Veja seus ativos, dívidas e evolução no Premium."
-            }
+            description="Acompanhe ativos, dívidas e evolução."
             icon="bar-chart-outline"
             locked={!isPremium}
             onPress={() => router.push("/finance/net-worth")}
           />
 
           <ToolCard
-            title="Economia automatizada"
-            description={
-              isPremium
-                ? "A Pila sugere valores semanais para guardar com segurança."
-                : "A Pila sugere valores semanais (Premium)."
-            }
+            title="Economia Automatizada"
+            description="Sugestões de economia baseadas no seu perfil."
             icon="sparkles-outline"
             locked={!isPremium}
             onPress={() => router.push("/finance/savings")}
           />
 
           <ToolCard
-            title="Pontuação de crédito"
-            description={
-              isPremium
-                ? "Acompanhe sua pontuação e receba alertas importantes."
-                : "Veja sua pontuação de crédito no Premium."
-            }
+            title="Pontuação de Crédito"
+            description="Veja sua pontuação e histórico."
             icon="shield-outline"
             locked={!isPremium}
             onPress={() => router.push("/finance/credit-score")}
           />
+
+          <ToolCard
+            title="Orçamento completo"
+            description="Gerencie limites e gastos por categoria."
+            icon="pie-chart-outline"
+            locked={!isPremium}
+            onPress={() => router.push("/finance/budget")}
+          />
         </View>
+
+        {/* CTA PARA UPSELL */}
+        {!isPremium && (
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => router.push("/premium")}
+            style={{
+              marginTop: 20,
+              paddingVertical: 12,
+              borderRadius: 999,
+              backgroundColor: "#FFF",
+              alignItems: "center",
+            }}
+          >
+            <Text
+              style={{
+                color: "#000",
+                fontWeight: "700",
+                fontSize: 14,
+              }}
+            >
+              Desbloquear Ferramentas Premium
+            </Text>
+          </TouchableOpacity>
+        )}
       </BlurView>
     </View>
   );
 }
 
 /* ---------------------------------------------------
-   COMPONENTE DE CARD INDIVIDUAL
+   CARD INDIVIDUAL
 -----------------------------------------------------*/
 
 interface CardProps {
@@ -109,42 +130,43 @@ interface CardProps {
 function ToolCard({ title, description, icon, locked, onPress }: CardProps) {
   return (
     <TouchableOpacity
-      activeOpacity={0.85}
+      activeOpacity={locked ? 0.8 : 0.88}
       onPress={onPress}
       style={{
         padding: 16,
-        borderRadius: 16,
+        borderRadius: 20,
         borderWidth: 1,
         borderColor: locked
           ? "rgba(255,255,255,0.10)"
           : "rgba(255,255,255,0.18)",
-        backgroundColor: "rgba(255,255,255,0.05)",
+        backgroundColor: locked
+          ? "rgba(255,255,255,0.04)"
+          : "rgba(255,255,255,0.08)",
         flexDirection: "row",
         alignItems: "center",
         gap: 16,
+        opacity: locked ? 0.55 : 1,
       }}
     >
+      {/* ÍCONE */}
       <View
         style={{
           width: 44,
           height: 44,
-          borderRadius: 12,
+          borderRadius: 14,
           justifyContent: "center",
           alignItems: "center",
           backgroundColor: locked
             ? "rgba(255,255,255,0.06)"
-            : "rgba(255,255,255,0.10)",
+            : "rgba(255,255,255,0.12)",
           borderWidth: 1,
-          borderColor: "rgba(255,255,255,0.10)",
+          borderColor: "rgba(255,255,255,0.12)",
         }}
       >
-        <Icon
-          name={icon}
-          size={22}
-          color={locked ? "#9CA3AF" : "#E5E7EB"}
-        />
+        <Icon name={icon} size={22} color={locked ? "#9CA3AF" : "#FFF"} />
       </View>
 
+      {/* TEXTOS */}
       <View style={{ flex: 1 }}>
         <Text
           style={{
@@ -168,14 +190,8 @@ function ToolCard({ title, description, icon, locked, onPress }: CardProps) {
         </Text>
       </View>
 
-      {/* LOCK BADGE */}
-      {locked && (
-        <Icon
-          name="lock-closed-outline"
-          size={18}
-          color="#9CA3AF"
-        />
-      )}
+      {/* Cadeado */}
+      {locked && <Icon name="lock-closed-outline" size={18} color="#9CA3AF" />}
     </TouchableOpacity>
   );
 }

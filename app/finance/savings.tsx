@@ -1,140 +1,186 @@
-// app/finance/savings.tsx
-import { useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, TextInput } from "react-native";
+// app/finance/savings/index.tsx
+import { View, Text, ScrollView, TouchableOpacity } from "react-native";
+import { useRouter } from "expo-router";
+import { BlurView } from "expo-blur";
 import Screen from "@/components/layout/Screen";
+import Icon from "@/components/ui/Icon";
 import { useSavings } from "@/hooks/useSavings";
 
 export default function SavingsScreen() {
-  const { entries, totalSaved, suggestion, addSaving } = useSavings();
-  const [open, setOpen] = useState(false);
-  const [amount, setAmount] = useState("");
-
-  async function save() {
-    if (!amount) return;
-    await addSaving(Number(amount));
-    setAmount("");
-    setOpen(false);
-  }
+  const router = useRouter();
+  const { entries, totalSaved, suggestion, loading } = useSavings();
 
   return (
     <Screen>
       <ScrollView
         contentContainerStyle={{
           padding: 20,
-          paddingBottom: 120,
+          paddingBottom: 140,
           gap: 26,
         }}
       >
-        <Text style={{ color: "#FFF", fontSize: 26, fontWeight: "700" }}>
-          Economia Automatizada
-        </Text>
-
+        {/* HEADER */}
         <View
           style={{
-            padding: 18,
-            borderRadius: 18,
-            borderWidth: 1,
-            borderColor: "rgba(255,255,255,0.08)",
-            backgroundColor: "rgba(255,255,255,0.03)",
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
           }}
         >
-          <Text style={{ color: "#9CA3AF", fontSize: 13, marginBottom: 6 }}>
+          <View>
+            <Text style={{ color: "#9CA3AF", fontSize: 13 }}>
+              Ferramentas Avançadas
+            </Text>
+
+            <Text
+              style={{
+                color: "#FFF",
+                fontSize: 26,
+                fontWeight: "700",
+                marginTop: 4,
+              }}
+            >
+              Economia Automatizada
+            </Text>
+
+            <Text
+              style={{
+                color: "#4B5563",
+                fontSize: 12,
+                marginTop: 4,
+              }}
+            >
+              Guardar nunca foi tão simples — powered by Pila.
+            </Text>
+          </View>
+
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={{
+              padding: 8,
+              backgroundColor: "rgba(255,255,255,0.06)",
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: "rgba(255,255,255,0.10)",
+            }}
+          >
+            <Icon name="close" color="#FFF" size={18} />
+          </TouchableOpacity>
+        </View>
+
+        {/* PAINEL TOTAL */}
+        <BlurView
+          intensity={22}
+          tint="dark"
+          style={{
+            padding: 20,
+            borderRadius: 22,
+            borderWidth: 1,
+            borderColor: "rgba(255,255,255,0.08)",
+            backgroundColor: "rgba(15,15,15,0.35)",
+            gap: 12,
+          }}
+        >
+          <Text style={{ color: "#9CA3AF", fontSize: 13 }}>
             Total guardado
           </Text>
 
-          <Text style={{ color: "#FFF", fontSize: 28, fontWeight: "700" }}>
+          <Text
+            style={{
+              color: "#FFF",
+              fontSize: 34,
+              fontWeight: "700",
+              letterSpacing: 0.5,
+            }}
+          >
             R$ {totalSaved.toLocaleString("pt-BR")}
           </Text>
 
-          <Text style={{ color: "#A5B4FC", marginTop: 10 }}>
-            Sugestão da Pila: guardar R$ {suggestion} essa semana.
+          <Text
+            style={{
+              color: "#A5B4FC",
+              marginTop: 6,
+              fontSize: 14,
+            }}
+          >
+            Sugestão da Pila: guardar{" "}
+            <Text style={{ fontWeight: "700" }}>R$ {suggestion}</Text>{" "}
+            essa semana.
           </Text>
-        </View>
+        </BlurView>
 
+        {/* LISTA DE DEPÓSITOS */}
         <View style={{ gap: 14 }}>
+          <Text style={{ color: "#FFF", fontSize: 17, fontWeight: "700" }}>
+            Histórico de depósitos
+          </Text>
+
+          {entries.length === 0 && (
+            <Text style={{ color: "#6B7280", fontSize: 13 }}>
+              Nenhuma movimentação registrada ainda.
+            </Text>
+          )}
+
           {entries.map((e) => (
             <View
               key={e.id}
               style={{
-                padding: 14,
-                borderRadius: 12,
-                backgroundColor: "rgba(255,255,255,0.05)",
+                padding: 16,
+                borderRadius: 16,
+                backgroundColor: "rgba(255,255,255,0.04)",
                 borderWidth: 1,
                 borderColor: "rgba(255,255,255,0.08)",
               }}
             >
-              <Text style={{ color: "#FFF" }}>
-                R$ {e.amount.toLocaleString("pt-BR")}
+              <Text
+                style={{
+                  color: "#FFF",
+                  fontSize: 16,
+                  fontWeight: "600",
+                }}
+              >
+                R$ {Number(e.amount).toLocaleString("pt-BR")}
               </Text>
-              <Text style={{ color: "#6B7280", fontSize: 12, marginTop: 4 }}>
-                {new Date(e.created_at).toLocaleString("pt-BR")}
+
+              <Text
+                style={{
+                  color: "#6B7280",
+                  fontSize: 12,
+                  marginTop: 4,
+                }}
+              >
+                {new Date(e.date).toLocaleDateString("pt-BR", {
+                  day: "2-digit",
+                  month: "short",
+                  year: "numeric",
+                })}
               </Text>
             </View>
           ))}
         </View>
 
+        {/* BOTÃO ADICIONAR */}
         <TouchableOpacity
-          onPress={() => setOpen(true)}
+          activeOpacity={0.85}
+          onPress={() => router.push("/finance/savings/new-saving")}
           style={{
-            marginTop: 20,
             padding: 14,
-            backgroundColor: "#FFF",
             borderRadius: 999,
+            backgroundColor: "#FFF",
+            marginTop: 18,
+            alignItems: "center",
           }}
         >
-          <Text style={{ textAlign: "center", color: "#000", fontWeight: "700" }}>
+          <Text
+            style={{
+              color: "#000",
+              fontWeight: "700",
+              fontSize: 15,
+            }}
+          >
             Guardar dinheiro
           </Text>
         </TouchableOpacity>
-
-        {open && (
-          <View
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundColor: "rgba(0,0,0,0.85)",
-              justifyContent: "center",
-              padding: 26,
-              gap: 12,
-            }}
-          >
-            <TextInput
-              placeholder="Valor"
-              placeholderTextColor="#666"
-              keyboardType="numeric"
-              style={{
-                backgroundColor: "#111",
-                padding: 14,
-                borderRadius: 12,
-                color: "#FFF",
-              }}
-              value={amount}
-              onChangeText={setAmount}
-            />
-
-            <TouchableOpacity
-              onPress={save}
-              style={{
-                padding: 14,
-                backgroundColor: "#FFF",
-                borderRadius: 12,
-              }}
-            >
-              <Text style={{ textAlign: "center", color: "#000", fontWeight: "700" }}>
-                Guardar
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity onPress={() => setOpen(false)}>
-              <Text style={{ textAlign: "center", color: "#FFF", marginTop: 10 }}>
-                Cancelar
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
       </ScrollView>
     </Screen>
   );

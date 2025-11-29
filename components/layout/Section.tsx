@@ -1,3 +1,4 @@
+// components/layout/Section.tsx
 import { ReactNode } from "react";
 import { View, Text } from "react-native";
 

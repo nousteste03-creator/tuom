@@ -2,27 +2,22 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
-export interface CreditScoreEntry {
-  id: string;
-  score: number;
-  created_at: string;
-}
-
 export function useCreditScore() {
-  const [history, setHistory] = useState<CreditScoreEntry[]>([]);
+  const [history, setHistory] = useState<any[]>([]);
   const [currentScore, setCurrentScore] = useState<number | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
+  /* ───────────────────────────────────────────────
+     LOAD HISTORY (oficial)
+  ─────────────────────────────────────────────── */
   async function load() {
-    setLoading(true);
-
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
     if (!user) {
       setHistory([]);
-      setLoading(false);
+      setCurrentScore(null);
       return;
     }
 
@@ -32,50 +27,64 @@ export function useCreditScore() {
       .eq("user_id", user.id)
       .order("created_at", { ascending: false });
 
-    if (!error && data) {
-      setHistory(data as CreditScoreEntry[]);
-      setCurrentScore(data[0]?.score ?? null);
+    if (error) {
+      console.log("Credit score load error:", error);
+      setHistory([]);
+      setCurrentScore(null);
+      return;
     }
 
-    setLoading(false);
+    const list = data ?? [];
+    setHistory(list);
+
+    // Score atual = item mais recente
+    if (list.length > 0) {
+      setCurrentScore(list[0].score ?? null);
+    } else {
+      setCurrentScore(null);
+    }
   }
 
   useEffect(() => {
     load();
   }, []);
 
+  /* ───────────────────────────────────────────────
+     RODAR UMA CONSULTA (modo FAKE até API real entrar)
+  ─────────────────────────────────────────────── */
   async function runCheck() {
     setLoading(true);
 
-    const simulated = Math.floor(300 + Math.random() * 500);
+    // Placeholder que imita Boa Vista/Quod
+    const fakeScore = Math.floor(300 + Math.random() * 500);
 
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
-    // 1️⃣ Registrar score
-    const { data: scoreData } = await supabase
+    if (!user) {
+      setLoading(false);
+      return null;
+    }
+
+    const { data, error } = await supabase
       .from("credit_score_history")
       .insert({
-        user_id: user?.id,
-        score: simulated,
+        user_id: user.id,
+        score: fakeScore,
+        provider: "boa_vista",
+        created_at: new Date().toISOString(),
       })
       .select()
-      .single();
+      .maybeSingle();
 
-    // 2️⃣ Log técnico
-    await supabase.from("credit_score_checks").insert({
-      user_id: user?.id,
-      provider: "boa_vista",
-      status: "success",
-    });
-
-    if (scoreData) {
-      setHistory((prev) => [scoreData, ...prev]);
-      setCurrentScore(scoreData.score);
+    if (!error && data) {
+      setHistory((prev) => [data, ...prev]);
+      setCurrentScore(data.score);
     }
 
     setLoading(false);
+    return data;
   }
 
   return {

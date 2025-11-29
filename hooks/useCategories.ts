@@ -1,3 +1,4 @@
+// hooks/useCategories.ts
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
@@ -6,43 +7,68 @@ export function useCategories() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<any>(null);
 
-  useEffect(() => {
-    let cancelled = false;
+  async function load() {
+    setLoading(true);
 
-    async function load() {
-      const { data, error } = await supabase
-        .from("categories")
-        .select("*")
-        .order("created_at", { ascending: true });
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-      if (error) {
-        console.error("Erro carregando categories:", error);
-        if (!cancelled) {
-          setError(error);
-          setCategories([]);
-        }
-        return;
-      }
-
-      if (!cancelled) {
-        setCategories(data || []);
-      }
+    if (!user) {
+      setCategories([]);
+      setLoading(false);
+      return;
     }
 
-    load();
+    const { data, error } = await supabase
+      .from("categories")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: true });
 
-    return () => {
-      cancelled = true;
-    };
+    if (error) {
+      console.error("Erro carregando categories:", error);
+      setError(error);
+      setCategories([]);
+      setLoading(false);
+      return;
+    }
+
+    // Garantir valores numéricos
+    const normalized = (data || []).map((c) => ({
+      ...c,
+      amount: Number(c.amount || 0),
+    }));
+
+    setCategories(normalized);
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    load();
   }, []);
 
+  /* ---------------------------------------------------------
+     CREATE
+  -----------------------------------------------------------*/
   async function createCategory(payload: {
     title: string;
     amount: number;
+    type: "income" | "expense";
   }) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return null;
+
     const { data, error } = await supabase
       .from("categories")
-      .insert(payload)
+      .insert({
+        user_id: user.id,
+        title: payload.title,
+        amount: Number(payload.amount),
+        type: payload.type,
+      })
       .select()
       .single();
 
@@ -55,16 +81,23 @@ export function useCategories() {
     return data;
   }
 
+  /* ---------------------------------------------------------
+     UPDATE
+  -----------------------------------------------------------*/
   async function updateCategory(id: string, payload: any) {
     const { data, error } = await supabase
       .from("categories")
-      .update(payload)
+      .update({
+        title: payload.title,
+        amount: Number(payload.amount),
+        type: payload.type,
+      })
       .eq("id", id)
       .select()
       .single();
 
     if (error) {
-      console.error("Erro atualizando:", error);
+      console.error("Erro atualizando categoria:", error);
       return null;
     }
 
@@ -75,6 +108,9 @@ export function useCategories() {
     return data;
   }
 
+  /* ---------------------------------------------------------
+     DELETE
+  -----------------------------------------------------------*/
   async function deleteCategory(id: string) {
     const { error } = await supabase
       .from("categories")
@@ -95,6 +131,7 @@ export function useCategories() {
     createCategory,
     updateCategory,
     deleteCategory,
+    reload: load,
     loading,
     error,
   };

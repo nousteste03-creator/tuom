@@ -21,10 +21,10 @@ function endOfDay(date: Date) {
   return d;
 }
 
-function computeMetrics(subscriptions: Subscription[]): Metrics {
+function computeMetrics(subs: Subscription[]): Metrics {
   let monthlyTotal = 0;
 
-  for (const s of subscriptions) {
+  for (const s of subs) {
     let factor = 1;
 
     switch (s.frequency) {
@@ -39,20 +39,19 @@ function computeMetrics(subscriptions: Subscription[]): Metrics {
         break;
     }
 
-    monthlyTotal += (s.price ?? 0) * factor;
+    monthlyTotal += Number(s.price || 0) * factor;
   }
 
   const annualTotal = monthlyTotal * 12;
 
   const today = new Date();
-  const in7Days = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const in7 = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-  const upcomingRenewals = subscriptions
+  const upcomingRenewals = subs
     .filter((s) => {
       if (!s.next_billing) return false;
       const d = new Date(s.next_billing);
-      if (Number.isNaN(d.getTime())) return false;
-      return d >= startOfDay(today) && d <= endOfDay(in7Days);
+      return d >= startOfDay(today) && d <= endOfDay(in7);
     })
     .sort(
       (a, b) =>
@@ -102,6 +101,6 @@ export function useSubscriptions() {
     upcomingRenewals,
     loading,
     error,
-    refetch: load,
+    reload: load,
   };
 }

@@ -1,17 +1,14 @@
 // hooks/useSavings.ts
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
 
-export interface SavingEntry {
-  id: string;
-  amount: number;
-  created_at: string;
-}
-
 export function useSavings() {
-  const [entries, setEntries] = useState<SavingEntry[]>([]);
+  const [entries, setEntries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  /* ───────────────────────────────────────────────
+     LOAD (histórico de economia manual)
+  ─────────────────────────────────────────────── */
   async function load() {
     setLoading(true);
 
@@ -29,10 +26,13 @@ export function useSavings() {
       .from("savings_history")
       .select("*")
       .eq("user_id", user.id)
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false }); // CORRETO: não existe "date"
 
-    if (!error && data) {
-      setEntries(data as SavingEntry[]);
+    if (error) {
+      console.log("Savings load error:", error);
+      setEntries([]);
+    } else {
+      setEntries(data ?? []);
     }
 
     setLoading(false);
@@ -42,33 +42,53 @@ export function useSavings() {
     load();
   }, []);
 
-  async function addSaving(amount: number) {
+  /* ───────────────────────────────────────────────
+     ADD SAVING (criar novo registro manual)
+  ─────────────────────────────────────────────── */
+  async function addSaving(amount: number, description?: string) {
     const {
       data: { user },
     } = await supabase.auth.getUser();
+    if (!user) return null;
 
     const { data, error } = await supabase
       .from("savings_history")
       .insert({
-        user_id: user?.id,
+        user_id: user.id,
         amount,
+        description: description ?? null, // mesmo que não exista ainda no SQL
       })
       .select()
-      .single();
+      .maybeSingle();
 
     if (!error && data) {
       setEntries((prev) => [data, ...prev]);
+      return data;
     }
+
+    return null;
   }
 
-  const totalSaved = entries.reduce((sum, s) => sum + s.amount, 0);
+  /* ───────────────────────────────────────────────
+     TOTAL ACUMULADO
+  ─────────────────────────────────────────────── */
+  const totalSaved = useMemo(() => {
+    return entries.reduce((t, e) => t + Number(e.amount || 0), 0);
+  }, [entries]);
 
-  // Sugestão: baseada no total guardado
-  const suggestion = totalSaved < 50 ? 10 : totalSaved < 200 ? 15 : 20;
+  /* ───────────────────────────────────────────────
+     SUGESTÃO DE ECONOMIA (placeholder elegante)
+  ─────────────────────────────────────────────── */
+  const suggestion = useMemo(() => {
+    if (totalSaved < 100) return 15;
+    if (totalSaved < 500) return 30;
+    if (totalSaved < 2000) return 50;
+    return 100;
+  }, [totalSaved]);
 
   return {
-    entries,
     loading,
+    entries,
     totalSaved,
     suggestion,
     addSaving,

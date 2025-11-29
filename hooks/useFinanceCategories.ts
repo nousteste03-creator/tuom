@@ -1,11 +1,14 @@
+// hooks/useFinanceCategories.ts
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 export type FinanceCategory = {
   id: string;
+  user_id: string;
   name: string;
   description: string | null;
-  monthly: number;
+  monthly: number; // gasto mensal planejado
+  created_at: string;
 };
 
 export function useFinanceCategories() {
@@ -18,7 +21,7 @@ export function useFinanceCategories() {
     setError(null);
 
     const { data: userData } = await supabase.auth.getUser();
-    const userId = userData.user?.id;
+    const userId = userData?.user?.id;
 
     if (!userId) {
       setCategories([]);
@@ -26,17 +29,25 @@ export function useFinanceCategories() {
       return;
     }
 
-    const { data, error } = await supabase
+    const { data, error: err } = await supabase
       .from("finance_categories")
       .select("*")
       .eq("user_id", userId)
       .order("created_at", { ascending: true });
 
-    if (error) setError(error.message);
+    if (err) {
+      setError(err.message);
+      setCategories([]);
+    } else {
+      setCategories(data ?? []);
+    }
 
-    setCategories(data || []);
     setLoading(false);
   }
+
+  useEffect(() => {
+    load();
+  }, []);
 
   async function addCategory(input: {
     name: string;
@@ -44,7 +55,9 @@ export function useFinanceCategories() {
     monthly?: number;
   }) {
     const { data: userData } = await supabase.auth.getUser();
-    const userId = userData.user?.id;
+    const userId = userData?.user?.id;
+
+    if (!userId) return null;
 
     const { data, error } = await supabase
       .from("finance_categories")
@@ -53,13 +66,16 @@ export function useFinanceCategories() {
           user_id: userId,
           name: input.name,
           description: input.description ?? "",
-          monthly: input.monthly ?? 0,
+          monthly: Number(input.monthly ?? 0),
         },
       ])
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error("Erro criando categoria:", error);
+      return null;
+    }
 
     setCategories((prev) => [...prev, data]);
     return data;

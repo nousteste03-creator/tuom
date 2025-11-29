@@ -1,3 +1,4 @@
+// app/(tabs)/_layout.tsx
 import { Tabs } from "expo-router";
 import { colors } from "@/lib/colors";
 import Icon from "@/components/ui/Icon";
@@ -16,6 +17,7 @@ export default function TabsLayout() {
         tabBarInactiveTintColor: colors.textSecondary,
       }}
     >
+
       {/* HOME */}
       <Tabs.Screen
         name="home"
@@ -60,13 +62,13 @@ export default function TabsLayout() {
         }}
       />
 
-      {/* FINANÇAS */}
+      {/* FINANÇAS — rota correta (finance) */}
       <Tabs.Screen
         name="finance"
         options={{
           title: "Finanças",
           tabBarIcon: ({ color }) => (
-            <Icon name="stats-chart-outline" color={color} size={22} />
+            <Icon name="stats-chart-outline" size={22} color={color} />
           ),
         }}
       />
@@ -82,6 +84,7 @@ export default function TabsLayout() {
           ),
         }}
       />
+
     </Tabs>
   );
 }

@@ -3,58 +3,49 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 export function useUserPlan() {
-  const [plan, setPlan] = useState<"free" | "pro" | "dev_pro">("dev_pro");
+  const [plan, setPlan] = useState<"free" | "pro">("free");
+  const [isPremium, setIsPremium] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    async function load() {
-      setLoading(true);
+  async function load() {
+    setLoading(true);
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-      if (!user) {
-        setPlan("free");
-        setLoading(false);
-        return;
-      }
-
-      // PRIORIDADE 1 — user_metadata
-      const metaPlan = user.user_metadata?.plan;
-      if (metaPlan === "pro") {
-        setPlan("pro");
-        setLoading(false);
-        return;
-      }
-      if (metaPlan === "free") {
-        setPlan("free");
-        setLoading(false);
-        return;
-      }
-
-      // PRIORIDADE 2 — tabela user_settings
-      const { data } = await supabase
-        .from("user_settings")
-        .select("plan")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (data?.plan) {
-        setPlan(data.plan);
-      } else {
-        setPlan("dev_pro"); // fallback
-      }
-
+    if (!user) {
+      setPlan("free");
+      setIsPremium(false);
       setLoading(false);
+      return;
     }
 
+    const { data, error } = await supabase
+      .from("user_settings")
+      .select("plan")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (error) {
+      console.log("useUserPlan error: ", error);
+    }
+
+    const finalPlan = (data?.plan as "free" | "pro") ?? "free";
+
+    setPlan(finalPlan);
+    setIsPremium(finalPlan === "pro");
+    setLoading(false);
+  }
+
+  useEffect(() => {
     load();
   }, []);
 
   return {
-    plan,
-    isPremium: plan === "pro" || plan === "dev_pro",
     loading,
+    plan,
+    isPremium,
+    reload: load,
   };
 }

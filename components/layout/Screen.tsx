@@ -1,20 +1,23 @@
 // components/layout/Screen.tsx
-import { View, SafeAreaView, Platform } from "react-native";
+import React from "react";
+import { View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-export default function Screen({ children }: { children: React.ReactNode }) {
+export default function Screen({ children, style }: any) {
   return (
     <SafeAreaView
-      style={{
-        flex: 1,
-        backgroundColor: "#0B0B0C", // fundo global Apple dark
-      }}
+      style={[
+        {
+          flex: 1,
+          backgroundColor: "#000",
+        },
+        style,
+      ]}
     >
       <View
         style={{
           flex: 1,
           width: "100%",
-          alignSelf: "stretch",
-          // NÃO usa paddingBottom (quebra o teclado)
         }}
       >
         {children}

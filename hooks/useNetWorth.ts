@@ -1,18 +1,14 @@
 // hooks/useNetWorth.ts
-import { useState, useEffect } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
 
-export interface NetWorthItem {
-  id: string;
-  type: "asset" | "debt";
-  title: string;
-  amount: number;
-}
-
 export function useNetWorth() {
-  const [items, setItems] = useState<NetWorthItem[]>([]);
+  const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  /* ───────────────────────────────────────────────
+     LOAD ITEMS (puxa tudo do usuário)
+  ─────────────────────────────────────────────── */
   async function load() {
     setLoading(true);
 
@@ -30,12 +26,9 @@ export function useNetWorth() {
       .from("net_worth_items")
       .select("*")
       .eq("user_id", user.id)
-      .order("created_at", { ascending: false });
+      .order("updated_at", { ascending: false });
 
-    if (!error && data) {
-      setItems(data as NetWorthItem[]);
-    }
-
+    if (!error) setItems(data ?? []);
     setLoading(false);
   }
 
@@ -43,41 +36,59 @@ export function useNetWorth() {
     load();
   }, []);
 
-  async function addItem(item: Omit<NetWorthItem, "id">) {
+  /* ───────────────────────────────────────────────
+     ADD
+  ─────────────────────────────────────────────── */
+  async function addItem({ title, type, value }: any) {
     const {
       data: { user },
     } = await supabase.auth.getUser();
+    if (!user) return null;
 
     const { data, error } = await supabase
       .from("net_worth_items")
       .insert({
-        user_id: user?.id,
-        ...item,
+        user_id: user.id,
+        title,
+        type, // "asset" | "liability"
+        value,
       })
       .select()
-      .single();
+      .maybeSingle();
 
     if (!error && data) {
       setItems((prev) => [data, ...prev]);
+      return data;
     }
+
+    return null;
   }
 
-  async function updateItem(id: string, updated: Partial<NetWorthItem>) {
+  /* ───────────────────────────────────────────────
+     UPDATE
+  ─────────────────────────────────────────────── */
+  async function updateItem(id: string, payload: any) {
     const { data, error } = await supabase
       .from("net_worth_items")
-      .update(updated)
+      .update({ ...payload, updated_at: new Date() })
       .eq("id", id)
       .select()
-      .single();
+      .maybeSingle();
 
     if (!error && data) {
       setItems((prev) =>
         prev.map((i) => (i.id === id ? { ...i, ...data } : i))
       );
+      return true;
     }
+
+    return false;
   }
 
-  async function removeItem(id: string) {
+  /* ───────────────────────────────────────────────
+     DELETE
+  ─────────────────────────────────────────────── */
+  async function deleteItem(id: string) {
     const { error } = await supabase
       .from("net_worth_items")
       .delete()
@@ -85,28 +96,48 @@ export function useNetWorth() {
 
     if (!error) {
       setItems((prev) => prev.filter((i) => i.id !== id));
+      return true;
     }
+
+    return false;
   }
 
-  const totalAssets = items
-    .filter((i) => i.type === "asset")
-    .reduce((sum, i) => sum + i.amount, 0);
+  /* ───────────────────────────────────────────────
+     CÁLCULOS DERIVADOS (100% SEGUROS)
+  ─────────────────────────────────────────────── */
 
-  const totalDebts = items
-    .filter((i) => i.type === "debt")
-    .reduce((sum, i) => sum + i.amount, 0);
+  const totalAssets = useMemo(() => {
+    return items
+      .filter((i) => i.type === "asset")
+      .reduce((t, i) => t + Number(i.value || 0), 0);
+  }, [items]);
 
-  const netWorth = totalAssets - totalDebts;
+  const totalLiabilities = useMemo(() => {
+    return items
+      .filter((i) => i.type === "liability")
+      .reduce((t, i) => t + Number(i.value || 0), 0);
+  }, [items]);
 
+  const netWorth = useMemo(() => {
+    return Number(totalAssets || 0) - Number(totalLiabilities || 0);
+  }, [totalAssets, totalLiabilities]);
+
+  /* ───────────────────────────────────────────────
+     RETURN
+  ─────────────────────────────────────────────── */
   return {
-    items,
     loading,
+    items,
+
+    // totals
     totalAssets,
-    totalDebts,
+    totalLiabilities,
     netWorth,
+
+    // actions
     addItem,
     updateItem,
-    removeItem,
+    deleteItem,
     reload: load,
   };
 }

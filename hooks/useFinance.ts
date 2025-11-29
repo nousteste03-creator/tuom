@@ -1,108 +1,89 @@
-import { useEffect, useMemo } from "react";
-import { supabase } from "@/lib/supabase";
-
+// hooks/useFinance.ts
+import { useMemo, useState } from "react";
 import { useSubscriptions } from "./useSubscriptions";
-import { useCategories } from "./useCategories";
+import { useBudget } from "./useBudget";
 import { useGoals } from "./useGoals";
 import { useOpenFinance } from "./useOpenFinance";
 
 export function useFinance() {
-  const { monthlyTotal: subsTotal } = useSubscriptions();
-  const { categories } = useCategories();
-  const { goals } = useGoals();
+  // Assinaturas
+  const { monthlyTotal: subsTotal, reload: reloadSubs } = useSubscriptions();
+
+  // Orçamento (Budget)
+  const {
+    totalExpenses: budgetTotal,
+    totalsByCategory,
+    reload: reloadBudget,
+  } = useBudget();
+
+  // Metas
+  const { goals, reload: reloadGoals } = useGoals();
+
+  // Placeholder Open Finance
   const { connected } = useOpenFinance();
 
-  // ───────────────────────────────────────────
-  // CÁLCULOS DO PAINEL
-  // ───────────────────────────────────────────
-  const totalIncome = useMemo(
-    () =>
-      categories
-        .filter((c) => c.type === "income")
-        .reduce((t, c) => t + c.amount, 0),
-    [categories]
-  );
+  const [loading, setLoading] = useState(false);
 
-  const personalExpenses = useMemo(
-    () =>
-      categories
-        .filter((c) => c.type === "expense")
-        .reduce((t, c) => t + c.amount, 0),
-    [categories]
-  );
+  // --------------------------------------------------------
+  // SAÍDAS DO MÊS = categorias + assinaturas
+  // --------------------------------------------------------
+  const totalExpenses = subsTotal + budgetTotal;
 
-  const totalExpenses = subsTotal + personalExpenses;
+  // --------------------------------------------------------
+  // RECEITA – por enquanto sempre 0 (até integrar)
+  // --------------------------------------------------------
+  const totalIncome = 0;
+
+  // --------------------------------------------------------
+  // SALDO
+  // --------------------------------------------------------
   const balance = totalIncome - totalExpenses;
 
-  // ───────────────────────────────────────────
-  // SALVAR HISTÓRICO AUTOMATICAMENTE
-  // ───────────────────────────────────────────
+  // --------------------------------------------------------
+  // PROJEÇÃO ANUAL
+  // --------------------------------------------------------
+  const annualProjection = totalExpenses * 12;
 
-  async function saveHistory({
-    userId,
-    month,
-    income,
-    expenses,
-    subscriptions,
-    balance,
-  }: {
-    userId: string;
-    month: string;
-    income: number;
-    expenses: number;
-    subscriptions: number;
-    balance: number;
-  }) {
-    await supabase.from("finance_history").upsert(
-      {
-        user_id: userId,
-        month,
-        income,
-        expenses,
-        subscriptions,
-        balance,
-      },
-      { onConflict: "user_id,month" }
-    );
+  // --------------------------------------------------------
+  // INSIGHT
+  // --------------------------------------------------------
+  const insight =
+    balance < 0
+      ? "Seu mês tende ao negativo. Vamos ajustar juntos."
+      : balance < totalExpenses * 0.15
+      ? "Positivo, mas apertado. Pequenos ajustes já aliviam."
+      : "Mês saudável com folga. Ótimo para reforçar metas.";
+
+  // --------------------------------------------------------
+  // RELOAD GLOBAL
+  // --------------------------------------------------------
+  async function reload() {
+    setLoading(true);
+    await Promise.all([reloadSubs?.(), reloadBudget?.(), reloadGoals?.()]);
+    setLoading(false);
   }
 
-  useEffect(() => {
-    async function persist() {
-      const { data } = await supabase.auth.getSession();
-      const user = data?.session?.user;
-      if (!user) return;
-
-      const month = new Date().toISOString().slice(0, 7); // YYYY-MM
-
-      await saveHistory({
-        userId: user.id,
-        month,
-        income: totalIncome,
-        expenses: totalExpenses,
-        subscriptions: subsTotal,
-        balance,
-      });
-    }
-
-    persist();
-  }, [totalIncome, totalExpenses, subsTotal, balance]);
-
-  // ───────────────────────────────────────────
-  // RETORNO FINAL
-  // ───────────────────────────────────────────
   return {
-    totalIncome,
+    // Saídas
     totalExpenses,
     subsTotal,
-    personalExpenses,
+    budgetTotal,
+
+    // Entradas
+    totalIncome,
+
+    // Painel
     balance,
+    annualProjection,
+    insight,
+
+    // Extras
+    totalsByCategory,
     goals,
     openFinanceEnabled: connected,
-    insight:
-      balance < 0
-        ? "Seu mês tende ao negativo. Vamos ajustar juntos."
-        : balance < totalExpenses * 0.15
-        ? "Positivo, mas apertado. Pequenos ajustes já aliviam."
-        : "Mês saudável com folga. Ótimo para reforçar metas.",
+    loading,
+
+    // API
+    reload,
   };
 }
