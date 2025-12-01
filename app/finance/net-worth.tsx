@@ -6,6 +6,40 @@ import Screen from "@/components/layout/Screen";
 import Icon from "@/components/ui/Icon";
 import { useNetWorth } from "@/hooks/useNetWorth";
 
+/* ============================================================
+   Sparkline Apple Minimal – igual do FinanceScreen
+============================================================ */
+function MiniSparkline({ value }: { value: number }) {
+  return (
+    <View
+      style={{
+        width: "100%",
+        height: 22,
+        borderRadius: 10,
+        backgroundColor: "rgba(255,255,255,0.05)",
+        justifyContent: "center",
+        overflow: "hidden",
+      }}
+    >
+      <View
+        style={{
+          width:
+            value > 2 ? "80%" : value < -2 ? "40%" : "60%",
+          height: 3,
+          backgroundColor:
+            value > 2
+              ? "rgba(94,255,185,0.85)"
+              : value < -2
+              ? "rgba(255,120,120,0.85)"
+              : "rgba(255,255,255,0.45)",
+          borderRadius: 999,
+          marginLeft: 10,
+        }}
+      />
+    </View>
+  );
+}
+
 export default function NetWorthScreen() {
   const router = useRouter();
   const {
@@ -13,7 +47,8 @@ export default function NetWorthScreen() {
     netWorth,
     totalAssets,
     totalLiabilities,
-    loading
+    loading,
+    monthGrowth, // <- se existir no seu hook (se não tiver, ignora)
   } = useNetWorth();
 
   return (
@@ -25,7 +60,9 @@ export default function NetWorthScreen() {
           gap: 26,
         }}
       >
-        {/* HEADER */}
+        {/* ======================================================
+            HEADER
+        ====================================================== */}
         <View
           style={{
             flexDirection: "row",
@@ -74,7 +111,9 @@ export default function NetWorthScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* RESUMO PRINCIPAL */}
+        {/* ======================================================
+            RESUMO PRINCIPAL
+        ====================================================== */}
         <BlurView
           intensity={22}
           tint="dark"
@@ -87,7 +126,9 @@ export default function NetWorthScreen() {
             gap: 12,
           }}
         >
-          <Text style={{ color: "#9CA3AF", fontSize: 13 }}>Patrimônio atual</Text>
+          <Text style={{ color: "#9CA3AF", fontSize: 13 }}>
+            Patrimônio atual
+          </Text>
 
           <Text style={{ color: "#FFF", fontSize: 32, fontWeight: "700" }}>
             R$ {netWorth.toLocaleString("pt-BR")}
@@ -102,9 +143,14 @@ export default function NetWorthScreen() {
               Dívidas — R$ {totalLiabilities.toLocaleString("pt-BR")}
             </Text>
           </View>
+
+          {/* Sparkline NÖUS Premium */}
+          <MiniSparkline value={monthGrowth ?? 0} />
         </BlurView>
 
-        {/* LISTA DE ITENS */}
+        {/* ======================================================
+            LISTA DE ITENS
+        ====================================================== */}
         <View style={{ gap: 14 }}>
           <Text style={{ color: "#FFF", fontSize: 17, fontWeight: "700" }}>
             Seus ativos e dívidas
@@ -132,25 +178,32 @@ export default function NetWorthScreen() {
                 backgroundColor: "rgba(255,255,255,0.05)",
                 borderWidth: 1,
                 borderColor: "rgba(255,255,255,0.08)",
+                gap: 6,
               }}
             >
-              <Text style={{ color: "#FFF", fontSize: 16, fontWeight: "600" }}>
+              <Text
+                style={{ color: "#FFF", fontSize: 16, fontWeight: "600" }}
+              >
                 {i.title}
               </Text>
 
               <Text
                 style={{
                   color: i.type === "asset" ? "#A7F3D0" : "#FCA5A5",
-                  marginTop: 4,
                 }}
               >
                 R$ {Number(i.value).toLocaleString("pt-BR")}
               </Text>
+
+              {/* Mini evolução por item – opcional */}
+              <MiniSparkline value={i.growth ?? 0} />
             </TouchableOpacity>
           ))}
         </View>
 
-        {/* BOTÃO ADD */}
+        {/* ======================================================
+            BOTÃO ADICIONAR
+        ====================================================== */}
         <TouchableOpacity
           activeOpacity={0.9}
           onPress={() => router.push("/finance/net-worth/new-item")}

@@ -4,38 +4,36 @@ import { BlurView } from "expo-blur";
 import Icon from "@/components/ui/Icon";
 import { useRouter } from "expo-router";
 
-interface Props {
-  isPremium: boolean;
-}
-
-export default function ToolsBlock({ isPremium }: Props) {
+export default function ToolsBlock({ isPremium }: { isPremium: boolean }) {
   const router = useRouter();
 
   return (
     <View
       style={{
-        marginTop: 14,
-        borderRadius: 24,
+        marginTop: 10,
+        borderRadius: 28,
         overflow: "hidden",
-        borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.07)",
+        borderWidth: 0.4,
+        borderColor: "rgba(255,255,255,0.05)",
       }}
     >
       <BlurView
-        intensity={22}
         tint="dark"
+        intensity={14} // Apple fino
         style={{
-          padding: 18,
-          backgroundColor: "rgba(15,15,15,0.45)",
+          padding: 22,
+          backgroundColor: "rgba(0,0,0,0.72)", // preto Apple real + leve vidro
+          gap: 22,
         }}
       >
-        {/* HEADER */}
+        {/* ======================================================
+            HEADER
+        ====================================================== */}
         <Text
           style={{
             color: "#FFF",
-            fontSize: 16,
-            fontWeight: "600",
-            marginBottom: 4,
+            fontSize: 18,
+            fontWeight: "700",
           }}
         >
           Ferramentas avançadas NÖUS
@@ -43,59 +41,38 @@ export default function ToolsBlock({ isPremium }: Props) {
 
         <Text
           style={{
-            color: "#9CA3AF",
-            fontSize: 12,
-            marginBottom: 20,
+            color: "rgba(255,255,255,0.55)",
+            fontSize: 13,
+            marginTop: -6,
           }}
         >
-          Módulos completos para controle financeiro real.
+          Módulos premium para controle financeiro real.
         </Text>
 
-        {/* LISTA */}
+        {/* ======================================================
+            APENAS *1* ITEM: Economia Automatizada
+        ====================================================== */}
         <View style={{ gap: 16 }}>
-          <ToolCard
-            title="Patrimônio Líquido"
-            description="Acompanhe ativos, dívidas e evolução."
-            icon="bar-chart-outline"
-            locked={!isPremium}
-            onPress={() => router.push("/finance/net-worth")}
-          />
-
-          <ToolCard
+          <Tool
             title="Economia Automatizada"
-            description="Sugestões de economia baseadas no seu perfil."
+            desc="Sugestões inteligentes com base no seu perfil."
             icon="sparkles-outline"
             locked={!isPremium}
             onPress={() => router.push("/finance/savings")}
           />
-
-          <ToolCard
-            title="Pontuação de Crédito"
-            description="Veja sua pontuação e histórico."
-            icon="shield-outline"
-            locked={!isPremium}
-            onPress={() => router.push("/finance/credit-score")}
-          />
-
-          <ToolCard
-            title="Orçamento completo"
-            description="Gerencie limites e gastos por categoria."
-            icon="pie-chart-outline"
-            locked={!isPremium}
-            onPress={() => router.push("/finance/budget")}
-          />
         </View>
 
-        {/* CTA PARA UPSELL */}
+        {/* ======================================================
+            CTA PARA PREMIUM (mantido)
+        ====================================================== */}
         {!isPremium && (
           <TouchableOpacity
-            activeOpacity={0.85}
             onPress={() => router.push("/premium")}
             style={{
-              marginTop: 20,
+              marginTop: 10,
               paddingVertical: 12,
               borderRadius: 999,
-              backgroundColor: "#FFF",
+              backgroundColor: "#FFFFFF",
               alignItems: "center",
             }}
           >
@@ -115,83 +92,51 @@ export default function ToolsBlock({ isPremium }: Props) {
   );
 }
 
-/* ---------------------------------------------------
-   CARD INDIVIDUAL
------------------------------------------------------*/
-
-interface CardProps {
-  title: string;
-  description: string;
-  icon: string;
-  locked?: boolean;
-  onPress: () => void;
-}
-
-function ToolCard({ title, description, icon, locked, onPress }: CardProps) {
+/* ============================================================
+   COMPONENTE TOOL – versão minimalista premium
+============================================================ */
+function Tool({ title, desc, icon, locked, onPress }: any) {
   return (
     <TouchableOpacity
-      activeOpacity={locked ? 0.8 : 0.88}
       onPress={onPress}
+      activeOpacity={0.85}
       style={{
         padding: 16,
         borderRadius: 20,
-        borderWidth: 1,
-        borderColor: locked
-          ? "rgba(255,255,255,0.10)"
-          : "rgba(255,255,255,0.18)",
-        backgroundColor: locked
-          ? "rgba(255,255,255,0.04)"
-          : "rgba(255,255,255,0.08)",
+        borderWidth: 0.4,
+        borderColor: "rgba(255,255,255,0.06)",
+        backgroundColor: "rgba(255,255,255,0.03)", // vidro escuro Apple
         flexDirection: "row",
+        gap: 14,
         alignItems: "center",
-        gap: 16,
         opacity: locked ? 0.55 : 1,
       }}
     >
-      {/* ÍCONE */}
       <View
         style={{
           width: 44,
           height: 44,
-          borderRadius: 14,
+          borderRadius: 16,
+          backgroundColor: "rgba(255,255,255,0.05)",
           justifyContent: "center",
           alignItems: "center",
-          backgroundColor: locked
-            ? "rgba(255,255,255,0.06)"
-            : "rgba(255,255,255,0.12)",
-          borderWidth: 1,
-          borderColor: "rgba(255,255,255,0.12)",
         }}
       >
-        <Icon name={icon} size={22} color={locked ? "#9CA3AF" : "#FFF"} />
+        <Icon name={icon} size={22} color="#FFF" />
       </View>
 
-      {/* TEXTOS */}
       <View style={{ flex: 1 }}>
-        <Text
-          style={{
-            color: "#FFF",
-            fontSize: 15,
-            fontWeight: "600",
-            marginBottom: 2,
-          }}
-        >
+        <Text style={{ color: "#FFF", fontSize: 15, fontWeight: "600" }}>
           {title}
         </Text>
-
-        <Text
-          style={{
-            color: "#9CA3AF",
-            fontSize: 12,
-            lineHeight: 18,
-          }}
-        >
-          {description}
+        <Text style={{ color: "rgba(255,255,255,0.55)", fontSize: 12.5 }}>
+          {desc}
         </Text>
       </View>
 
-      {/* Cadeado */}
-      {locked && <Icon name="lock-closed-outline" size={18} color="#9CA3AF" />}
+      {locked && (
+        <Icon name="lock-closed-outline" size={18} color="rgba(255,255,255,0.40)" />
+      )}
     </TouchableOpacity>
   );
 }

@@ -9,7 +9,7 @@ export function useFinance() {
   // Assinaturas
   const { monthlyTotal: subsTotal, reload: reloadSubs } = useSubscriptions();
 
-  // Orçamento (Budget)
+  // Orçamento
   const {
     totalExpenses: budgetTotal,
     totalsByCategory,
@@ -19,18 +19,18 @@ export function useFinance() {
   // Metas
   const { goals, reload: reloadGoals } = useGoals();
 
-  // Placeholder Open Finance
+  // Open Finance
   const { connected } = useOpenFinance();
 
   const [loading, setLoading] = useState(false);
 
   // --------------------------------------------------------
-  // SAÍDAS DO MÊS = categorias + assinaturas
+  // SAÍDAS (categorias + assinaturas)
   // --------------------------------------------------------
   const totalExpenses = subsTotal + budgetTotal;
 
   // --------------------------------------------------------
-  // RECEITA – por enquanto sempre 0 (até integrar)
+  // RECEITA (placeholder)
   // --------------------------------------------------------
   const totalIncome = 0;
 

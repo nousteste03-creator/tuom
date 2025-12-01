@@ -19,9 +19,9 @@ import { useSubscriptions } from "@/hooks/useSubscriptions";
 export default function BudgetIndexScreen() {
   const router = useRouter();
 
-  // ----------- HOOKS CENTRAIS --------------
+  // HOOKS
   const { loading, categories, totalExpenses, reload } = useBudget() as any;
-  const { monthlyTotal: subsTotal } = useSubscriptions(); // Assinaturas
+  const { monthlyTotal: subsTotal } = useSubscriptions();
 
   const [refreshing, setRefreshing] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
@@ -39,7 +39,7 @@ export default function BudgetIndexScreen() {
     setRefreshing(false);
   }
 
-  // ----------- CATEGORIA FIXA “ASSINATURAS” -------------
+  // CATEGORIA FIXA DE ASSINATURAS
   const subscriptionCategory = {
     id: "builtin-subscriptions",
     title: "Assinaturas",
@@ -49,14 +49,20 @@ export default function BudgetIndexScreen() {
     isFixed: true,
   };
 
-  // FILTRA duplicações de ID caso venham do hook
+  // REMOVER duplicações vindas do hook
   const cleanCategories = categories.filter(
     (c: any) => String(c.id) !== "builtin-subscriptions"
   );
 
-  const finalCategories = [subscriptionCategory, ...cleanCategories];
+  // ORDENAR pela opção E:
+  // Assinaturas -> categorias ordenadas pelo maior gasto primeiro
+  const sortedDynamic = cleanCategories.sort(
+    (a: any, b: any) => Number(b.spent) - Number(a.spent)
+  );
 
-  // ----------- CÁLCULOS -----------
+  const finalCategories = [subscriptionCategory, ...sortedDynamic];
+
+  // SOMA DO LIMITE TOTAL (somente categorias normais)
   const limitTotal = useMemo(
     () =>
       finalCategories.reduce(
@@ -173,13 +179,7 @@ export default function BudgetIndexScreen() {
             >
               BUDGET
             </Text>
-            <Text
-              style={{
-                color: "#FFF",
-                fontSize: 20,
-                fontWeight: "700",
-              }}
-            >
+            <Text style={{ color: "#FFF", fontSize: 20, fontWeight: "700" }}>
               Orçamento do mês
             </Text>
           </View>
@@ -200,20 +200,10 @@ export default function BudgetIndexScreen() {
             overflow: "hidden",
           }}
         >
-          {/* Gasto no mês */}
-          <View
-            style={{
-              flexDirection: "row",
-              justifyContent: "space-between",
-            }}
-          >
+          {/* Gasto */}
+          <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
             <View style={{ flex: 1, paddingRight: 12 }}>
-              <Text
-                style={{
-                  color: "rgba(255,255,255,0.45)",
-                  fontSize: 13,
-                }}
-              >
+              <Text style={{ color: "rgba(255,255,255,0.45)", fontSize: 13 }}>
                 Gasto no mês
               </Text>
 
@@ -257,13 +247,7 @@ export default function BudgetIndexScreen() {
                 }}
               >
                 <Icon name="sparkles-outline" size={14} color="#FFF" />
-                <Text
-                  style={{
-                    color: "#FFF",
-                    marginLeft: 6,
-                    fontSize: 12,
-                  }}
-                >
+                <Text style={{ color: "#FFF", marginLeft: 6, fontSize: 12 }}>
                   Pila Insight
                 </Text>
               </View>
@@ -358,13 +342,7 @@ export default function BudgetIndexScreen() {
           </View>
         </BlurView>
 
-        {/* LISTA DE CATEGORIAS */}
-        {loading && (
-          <View style={{ marginTop: 40, alignItems: "center" }}>
-            <ActivityIndicator size="large" color="#FFF" />
-          </View>
-        )}
-
+        {/* LISTAGEM */}
         {!loading &&
           finalCategories.map((cat: any) => {
             const limit = Number(cat.limit_amount || 0);
@@ -405,7 +383,7 @@ export default function BudgetIndexScreen() {
                     borderColor: "rgba(255,255,255,0.06)",
                   }}
                 >
-                  {/* Top */}
+                  {/* Título */}
                   <View
                     style={{
                       flexDirection: "row",
@@ -474,10 +452,7 @@ export default function BudgetIndexScreen() {
 
                     {!isSubscriptions && (
                       <Text
-                        style={{
-                          color: "rgba(255,255,255,0.55)",
-                          fontSize: 13,
-                        }}
+                        style={{ color: "rgba(255,255,255,0.55)", fontSize: 13 }}
                       >
                         Limite {currency(limit)}
                       </Text>
@@ -485,12 +460,9 @@ export default function BudgetIndexScreen() {
 
                     {isSubscriptions && (
                       <Text
-                        style={{
-                          color: "rgba(255,255,255,0.55)",
-                          fontSize: 13,
-                        }}
+                        style={{ color: "rgba(255,255,255,0.55)", fontSize: 13 }}
                       >
-                        Total {currency(subsTotal)}
+                        Total {currency(spent)}
                       </Text>
                     )}
                   </View>
@@ -617,6 +589,7 @@ export default function BudgetIndexScreen() {
             >
               Ações rápidas
             </Text>
+
             <Text
               style={{
                 color: "rgba(255,255,255,0.45)",
@@ -627,7 +600,7 @@ export default function BudgetIndexScreen() {
               Crie categorias ou registre gastos diretamente no seu orçamento.
             </Text>
 
-            {/* CRIAR CATEGORIA */}
+            {/* Criar categoria */}
             <TouchableOpacity
               activeOpacity={0.9}
               onPress={() => {
@@ -648,15 +621,10 @@ export default function BudgetIndexScreen() {
               <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
                 <Icon name="albums-outline" size={20} color="#000" />
                 <View>
-                  <Text
-                    style={{
-                      color: "#000",
-                      fontSize: 15,
-                      fontWeight: "700",
-                    }}
-                  >
+                  <Text style={{ color: "#000", fontSize: 15, fontWeight: "700" }}>
                     Criar categoria
                   </Text>
+
                   <Text
                     style={{
                       color: "#4B5563",
@@ -672,7 +640,7 @@ export default function BudgetIndexScreen() {
               <Icon name="chevron-forward" size={18} color="#4B5563" />
             </TouchableOpacity>
 
-            {/* REGISTRAR GASTO */}
+            {/* Registrar gasto */}
             <TouchableOpacity
               activeOpacity={0.9}
               onPress={() => {
@@ -695,13 +663,7 @@ export default function BudgetIndexScreen() {
               <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
                 <Icon name="card-outline" size={20} color="#FFF" />
                 <View>
-                  <Text
-                    style={{
-                      color: "#FFF",
-                      fontSize: 15,
-                      fontWeight: "700",
-                    }}
-                  >
+                  <Text style={{ color: "#FFF", fontSize: 15, fontWeight: "700" }}>
                     Registrar gasto
                   </Text>
                   <Text

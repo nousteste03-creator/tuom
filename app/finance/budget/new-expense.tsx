@@ -130,13 +130,10 @@ export default function NewExpenseScreen() {
                 Categoria
               </Text>
 
-              {categories.length === 0 ? (
-                <Text style={{ color: "#6B7280", fontSize: 13 }}>
-                  Nenhuma categoria criada ainda.
-                </Text>
-              ) : (
-                <View style={{ gap: 10 }}>
-                  {categories.map((cat) => (
+              <View style={{ gap: 10 }}>
+                {categories
+                  .filter((c) => c.id !== "builtin-subscriptions")
+                  .map((cat) => (
                     <TouchableOpacity
                       key={cat.id}
                       activeOpacity={0.85}
@@ -166,8 +163,7 @@ export default function NewExpenseScreen() {
                       </Text>
                     </TouchableOpacity>
                   ))}
-                </View>
-              )}
+              </View>
             </View>
 
             {/* DESCRIPTION */}

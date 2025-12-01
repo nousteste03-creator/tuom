@@ -1,3 +1,4 @@
+// app/finance/budget/edit-category.tsx
 import { useEffect, useState } from "react";
 import {
   View,
@@ -25,6 +26,8 @@ export default function EditCategoryScreen() {
   const { id } = useLocalSearchParams();
 
   const { categories, updateCategory, deleteCategory } = useBudget();
+
+  // Categoria selecionada
   const category = categories.find((c) => c.id === id);
 
   const [title, setTitle] = useState("");
@@ -33,16 +36,23 @@ export default function EditCategoryScreen() {
   useEffect(() => {
     if (category) {
       setTitle(category.title);
-      setLimit(String(category.limit || category.spending_limit || ""));
+      setLimit(
+        category.limit_amount !== null &&
+        category.limit_amount !== undefined
+          ? String(category.limit_amount)
+          : ""
+      );
     }
   }, [category]);
 
   async function handleSave() {
     if (!title.trim()) return;
 
+    const limit_amount = Number(limit.replace(",", "."));
+
     await updateCategory(String(id), {
       title: title.trim(),
-      limit_amount: Number(limit.replace(",", ".")),
+      limit_amount: isNaN(limit_amount) ? 0 : limit_amount,
     });
 
     router.back();

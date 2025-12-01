@@ -1,3 +1,4 @@
+// app/finance/budget/new-category.tsx
 import { useState } from "react";
 import {
   View,
@@ -29,11 +30,11 @@ export default function NewCategoryScreen() {
   async function handleSave() {
     if (!title.trim()) return;
 
-    const spending_limit = Number(limit.replace(",", "."));
+    const limit_amount = Number(limit.replace(",", "."));
 
     await createCategory({
       title: title.trim(),
-      spending_limit: isNaN(spending_limit) ? 0 : spending_limit,
+      limit_amount: isNaN(limit_amount) ? 0 : limit_amount,
     });
 
     router.back();
