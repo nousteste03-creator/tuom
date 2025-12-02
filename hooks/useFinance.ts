@@ -16,8 +16,8 @@ export function useFinance() {
     reload: reloadBudget,
   } = useBudget();
 
-  // Metas
-  const { goals, reload: reloadGoals } = useGoals();
+  // Metas (agora incluímos projecao_mensal)
+  const { goals, getGoals: reloadGoals } = useGoals();
 
   // Open Finance
   const { connected } = useOpenFinance();
@@ -25,12 +25,30 @@ export function useFinance() {
   const [loading, setLoading] = useState(false);
 
   // --------------------------------------------------------
-  // SAÍDAS (categorias + assinaturas)
+  // TOTAL DE DESPESAS (assinaturas + orçamento)
   // --------------------------------------------------------
   const totalExpenses = subsTotal + budgetTotal;
 
   // --------------------------------------------------------
-  // RECEITA (placeholder)
+  // PROJEÇÃO DAS METAS (PRO)
+  // Somatório da coluna projecao_mensal das metas ativas
+  // --------------------------------------------------------
+  const totalGoalsMonthlyProjection = useMemo(() => {
+    if (!goals || goals.length === 0) return 0;
+
+    return goals
+      .filter(
+        (g) =>
+          g.status === "active" &&
+          (g.tipo === "meta" || g.tipo === "investimento") &&
+          g.projecao_mensal !== null &&
+          g.projecao_mensal !== undefined
+      )
+      .reduce((acc, g) => acc + Number(g.projecao_mensal), 0);
+  }, [goals]);
+
+  // --------------------------------------------------------
+  // RECEITA (placeholder até metas entrarem)
   // --------------------------------------------------------
   const totalIncome = 0;
 
@@ -76,6 +94,9 @@ export function useFinance() {
     balance,
     annualProjection,
     insight,
+
+    // Projeção de metas (PRO)
+    totalGoalsMonthlyProjection,
 
     // Extras
     totalsByCategory,

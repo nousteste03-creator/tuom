@@ -2,9 +2,11 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
+type UserPlan = "free" | "pro";
+
 export function useUserPlan() {
-  const [plan, setPlan] = useState<"free" | "pro">("free");
-  const [isPremium, setIsPremium] = useState(false);
+  const [plan, setPlan] = useState<UserPlan>("free");
+  const [isPro, setIsPro] = useState(false);
   const [loading, setLoading] = useState(true);
 
   async function load() {
@@ -16,7 +18,7 @@ export function useUserPlan() {
 
     if (!user) {
       setPlan("free");
-      setIsPremium(false);
+      setIsPro(false);
       setLoading(false);
       return;
     }
@@ -27,14 +29,12 @@ export function useUserPlan() {
       .eq("user_id", user.id)
       .maybeSingle();
 
-    if (error) {
-      console.log("useUserPlan error: ", error);
-    }
+    if (error) console.log("useUserPlan error:", error);
 
-    const finalPlan = (data?.plan as "free" | "pro") ?? "free";
+    const finalPlan: UserPlan = (data?.plan as UserPlan) ?? "free";
 
     setPlan(finalPlan);
-    setIsPremium(finalPlan === "pro");
+    setIsPro(finalPlan === "pro");
     setLoading(false);
   }
 
@@ -45,7 +45,7 @@ export function useUserPlan() {
   return {
     loading,
     plan,
-    isPremium,
+    isPro,
     reload: load,
   };
 }

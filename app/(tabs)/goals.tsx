@@ -1,3 +1,4 @@
-import PlaceholderScreen from "../../components/ui/PlaceholderScreen";
+// app/(tabs)/goals.tsx
+import GoalsIndexScreen from "@/app/goals/index";
 
-export default PlaceholderScreen;
+export default GoalsIndexScreen;
