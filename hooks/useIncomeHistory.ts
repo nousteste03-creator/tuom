@@ -17,7 +17,7 @@ export function useIncomeHistory() {
   const [loading, setLoading] = useState(false);
 
   /* ============================================================
-     Helper — mês atual no formato YYYY-MM
+     Helper — Retorna mês atual no formato YYYY-MM
   ============================================================ */
   function getCurrentMonth(): string {
     const d = new Date();
@@ -25,8 +25,8 @@ export function useIncomeHistory() {
   }
 
   /* ============================================================
-     3.1 — SALVAR SNAPSHOT MENSAL
-     total, fixa, variável
+     3.1 — SALVAR SNAPSHOT DO MÊS
+     - total, fixa, variável
   ============================================================ */
   async function saveMonthlySnapshot({
     total,
@@ -45,36 +45,36 @@ export function useIncomeHistory() {
       data: { session },
     } = await supabase.auth.getSession();
     const user = session?.user;
-    if (!user) return null;
+    if (!user) {
+      setLoading(false);
+      return null;
+    }
 
-    // Verificar se já existe snapshot do mês
-    const { data: existing } = await supabase
+    // Verifica se já existe registro do mês
+    const { data: existing, error: checkError } = await supabase
       .from("user_income_history")
       .select("*")
       .eq("user_id", user.id)
       .eq("month", month)
       .maybeSingle();
 
-    let res;
+    if (checkError) console.log("income-history check error:", checkError);
+
+    let row: IncomeHistory | null = null;
 
     if (existing) {
-      // atualizar
+      // atualiza registro existente
       const { data, error } = await supabase
         .from("user_income_history")
-        .update({
-          total,
-          fixed,
-          variable,
-        })
+        .update({ total, fixed, variable })
         .eq("user_id", user.id)
         .eq("month", month)
         .select("*")
         .single();
 
-      if (error) throw error;
-      res = data;
+      if (!error && data) row = data as IncomeHistory;
     } else {
-      // inserir
+      // cria novo registro
       const { data, error } = await supabase
         .from("user_income_history")
         .insert({
@@ -87,16 +87,15 @@ export function useIncomeHistory() {
         .select("*")
         .single();
 
-      if (error) throw error;
-      res = data;
+      if (!error && data) row = data as IncomeHistory;
     }
 
     setLoading(false);
-    return res;
+    return row;
   }
 
   /* ============================================================
-     3.2 — BUSCAR TODO O HISTÓRICO
+     3.2 — BUSCAR HISTÓRICO COMPLETO
   ============================================================ */
   const getHistory = useCallback(async () => {
     setLoading(true);
@@ -118,26 +117,27 @@ export function useIncomeHistory() {
       .eq("user_id", user.id)
       .order("month", { ascending: true });
 
-    if (!error && data) setHistory(data as IncomeHistory[]);
+    if (!error && data) {
+      setHistory(data as IncomeHistory[]);
+    }
 
     setLoading(false);
     return data || [];
   }, []);
 
   /* ============================================================
-     3.3 — GET VARIATION
-     Quanto subiu ou caiu de um mês para outro (%)
+     3.3 — VARIAÇÃO ENTRE ÚLTIMOS MESES (%)
   ============================================================ */
   function getVariation(): number {
     if (history.length < 2) return 0;
 
-    const last = history[history.length - 1];
-    const before = history[history.length - 2];
+    const last = history.at(-1)!;
+    const before = history.at(-2)!;
 
     if (!before.total || before.total === 0) return 0;
 
     const diff = last.total - before.total;
-    return (diff / before.total) * 100; // % variação
+    return (diff / before.total) * 100;
   }
 
   /* ============================================================
@@ -145,12 +145,12 @@ export function useIncomeHistory() {
   ============================================================ */
   function getMonthlyAverage(): number {
     if (!history.length) return 0;
-    const sum = history.reduce((acc, h) => acc + h.total, 0);
+    const sum = history.reduce((acc, h) => acc + (h.total || 0), 0);
     return sum / history.length;
   }
 
   /* ============================================================
-     RETURN
+     RETURN FINAL
   ============================================================ */
   return {
     history,

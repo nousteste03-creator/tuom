@@ -5,14 +5,17 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import * as SystemUI from "expo-system-ui";
 
+// IMPORTANTE — necessário para Wagmi Charts + gestures
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+
 export default function RootLayout() {
   useEffect(() => {
-    // Fundo profundo Apple Dark (fundamental para efeito ChatGPT)
+    // Fundo profundo Apple Dark
     SystemUI.setBackgroundColorAsync("#0B0B0C");
   }, []);
 
   return (
-    <>
+    <GestureHandlerRootView style={{ flex: 1 }}>
       <StatusBar style="light" />
 
       <Stack
@@ -24,6 +27,6 @@ export default function RootLayout() {
           },
         }}
       />
-    </>
+    </GestureHandlerRootView>
   );
 }
