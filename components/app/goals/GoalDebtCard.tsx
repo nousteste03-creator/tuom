@@ -31,6 +31,7 @@ export default function GoalDebtCard({ goal, onPress }: Props) {
       </BlurView>
     );
   }
+console.log("DEBT CARD GOAL:", goal);
 
   // segurança máxima
   const installments = goal.installments ?? [];

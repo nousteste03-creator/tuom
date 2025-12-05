@@ -27,28 +27,21 @@ function normalizeDateForSupabase(input: string): string | null {
 
   const date = input.trim();
 
-  // Caso já esteja correto
   if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-    console.log("normalizeDate → já normalizado:", date);
     return date;
   }
 
-  // DD/MM/YYYY
   const match = date.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
   if (match) {
     let [_, d, m, y] = match;
-
     if (y.length === 2) y = "20" + y;
-    const normalized = `${y.padStart(4, "0")}-${m.padStart(
+
+    return `${y.padStart(4, "0")}-${m.padStart(2, "0")}-${d.padStart(
       2,
       "0"
-    )}-${d.padStart(2, "0")}`;
-
-    console.log("normalizeDate → convertido:", { original: date, normalized });
-    return normalized;
+    )}`;
   }
 
-  console.log("normalizeDate → inválida:", date);
   return null;
 }
 
@@ -65,20 +58,17 @@ export default function CreateIncomeModal({ visible, onClose }: Props) {
 
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
-  const [frequency, setFrequency] = useState("monthly"); // padrão
+  const [frequency, setFrequency] = useState("monthly");
   const [nextDate, setNextDate] = useState("");
 
-  /* -------------------------------------------------------
-     LOG: Abertura e fechamento
-  --------------------------------------------------------*/
+  // Erros Apple Wallet
+  const [errors, setErrors] = useState<{ name?: string; amount?: string }>({});
+
+  /* ------------------------------------------------------- */
   useEffect(() => {
-    if (visible) console.log("DEBUG/CreateIncomeModal → modal ABERTO");
-    else console.log("DEBUG/CreateIncomeModal → modal FECHADO");
+    if (visible) setErrors({});
   }, [visible]);
 
-  /* -------------------------------------------------------
-     Animação do sheet modal (70% Apple)
-  --------------------------------------------------------*/
   useEffect(() => {
     if (visible) {
       Animated.parallel([
@@ -94,36 +84,27 @@ export default function CreateIncomeModal({ visible, onClose }: Props) {
         }),
       ]).start();
     } else {
-      Animated.parallel([
-        Animated.timing(fade, {
-          toValue: 0,
-          duration: 180,
-          useNativeDriver: true,
-        }),
-        Animated.timing(slide, {
-          toValue: 20,
-          duration: 180,
-          useNativeDriver: true,
-        }),
-      ]).start();
+      fade.setValue(0);
+      slide.setValue(20);
     }
-  }, [visible, fade, slide]);
+  }, [visible]);
 
-  /* -------------------------------------------------------
-     SUBMIT — criar fonte de renda
-  --------------------------------------------------------*/
+  /* ------------------------------------------------------- */
+  function validate() {
+    const newErrors: any = {};
+
+    if (!name.trim()) newErrors.name = "Preencha este campo";
+    if (!amount.trim()) newErrors.amount = "Preencha este campo";
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  }
+
+  /* ------------------------------------------------------- */
   const handleCreate = async () => {
     console.log("DEBUG/CreateIncomeModal → handleCreate() chamado");
 
-    if (!name || !amount) {
-      console.log("DEBUG/CreateIncomeModal → campos inválidos", {
-        name,
-        amount,
-        frequency,
-        nextDate,
-      });
-      return;
-    }
+    if (!validate()) return;
 
     const normalizedDate = normalizeDateForSupabase(nextDate);
 
@@ -136,18 +117,14 @@ export default function CreateIncomeModal({ visible, onClose }: Props) {
 
     console.log("DEBUG/CreateIncomeModal → Enviando createIncomeSource()", payload);
 
-    try {
-      const id = await createIncomeSource(payload);
-      console.log("DEBUG/CreateIncomeModal → createIncomeSource() retornou:", id);
-    } catch (err) {
-      console.log("ERROR/CreateIncomeModal → erro:", err);
-    }
+    const id = await createIncomeSource(payload);
+    console.log("DEBUG/CreateIncomeModal → createIncomeSource() retornou:", id);
 
     await reload();
-    onClose();
+    setTimeout(() => onClose(), 120);
   };
 
-  const disabled = !name || !amount;
+  const disabled = !name.trim() || !amount.trim();
 
   if (!visible) return null;
 
@@ -155,10 +132,7 @@ export default function CreateIncomeModal({ visible, onClose }: Props) {
     <Animated.View
       style={[
         styles.overlay,
-        {
-          opacity: fade,
-          transform: [{ translateY: slide }],
-        },
+        { opacity: fade, transform: [{ translateY: slide }] },
       ]}
     >
       <BlurView intensity={40} tint="dark" style={styles.modalContainer}>
@@ -172,8 +146,13 @@ export default function CreateIncomeModal({ visible, onClose }: Props) {
           >
             <Text style={styles.header}>Adicionar Receita</Text>
 
-            {/* Campo nome */}
-            <View style={styles.card}>
+            {/* Campo Nome */}
+            <View
+              style={[
+                styles.card,
+                errors.name && styles.cardErrorBorder,
+              ]}
+            >
               <Text style={styles.label}>Fonte de renda</Text>
               <TextInput
                 placeholder="Ex: Salário, Freelance..."
@@ -182,10 +161,16 @@ export default function CreateIncomeModal({ visible, onClose }: Props) {
                 value={name}
                 onChangeText={setName}
               />
+              {errors.name && <Text style={styles.errorText}>{errors.name}</Text>}
             </View>
 
             {/* Valor */}
-            <View style={styles.card}>
+            <View
+              style={[
+                styles.card,
+                errors.amount && styles.cardErrorBorder,
+              ]}
+            >
               <Text style={styles.label}>Valor</Text>
               <TextInput
                 placeholder="0,00"
@@ -195,6 +180,9 @@ export default function CreateIncomeModal({ visible, onClose }: Props) {
                 value={amount}
                 onChangeText={setAmount}
               />
+              {errors.amount && (
+                <Text style={styles.errorText}>{errors.amount}</Text>
+              )}
             </View>
 
             {/* Frequência */}
@@ -230,6 +218,7 @@ export default function CreateIncomeModal({ visible, onClose }: Props) {
               <Text style={styles.buttonText}>Adicionar Receita</Text>
             </TouchableOpacity>
 
+            {/* Fechar */}
             <TouchableOpacity
               onPress={onClose}
               style={{ marginTop: 18, alignSelf: "center" }}
@@ -267,6 +256,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.08)",
   },
+  cardErrorBorder: {
+    borderColor: "rgba(255,80,80,0.45)",
+  },
   label: {
     color: "rgba(255,255,255,0.6)",
     fontSize: 13,
@@ -276,6 +268,11 @@ const styles = StyleSheet.create({
     color: "white",
     fontSize: 16,
     paddingVertical: 4,
+  },
+  errorText: {
+    marginTop: 4,
+    color: "rgba(255,70,70,0.85)",
+    fontSize: 12,
   },
   button: {
     backgroundColor: "#d8eceeff",

@@ -43,14 +43,14 @@ function formatCurrency(value: number) {
 export type GoalMainCardProps = {
   goal: Goal | null;
 
-  progress?: number;         // 0–1
-  remainingAmount?: number;  // quanto falta
-  nextInstallment?: number;  // opcional para dívidas
+  progress?: number;         
+  remainingAmount?: number;
+  nextInstallment?: number;
 
   isPro?: boolean;
 
-  onPressDetails?: () => void;
-  onPressEdit?: () => void;
+  onPressDetails?: () => void;     // ADICIONADO
+  onPressEdit?: () => void;        // ADICIONADO
   onPressAddInstallment?: () => void;
 };
 
@@ -64,13 +64,13 @@ export default function GoalMainCard({
   remainingAmount = 0,
   nextInstallment,
   isPro = false,
-  onPressDetails,
-  onPressEdit,
+  onPressDetails,               // ADICIONADO
+  onPressEdit,                  // ADICIONADO
   onPressAddInstallment,
 }: GoalMainCardProps) {
   const [barWidth, setBarWidth] = useState(0);
+  console.log("MAIN CARD GOAL:", goal);
 
-  // animação
   const entryAnim = useRef(new Animated.Value(0)).current;
   const progressAnim = useRef(new Animated.Value(0)).current;
 
@@ -245,12 +245,15 @@ export default function GoalMainCard({
         <View style={styles.actionsRow}>
           <TouchableOpacity
             style={styles.primaryButton}
-            onPress={onPressDetails}
+            onPress={onPressDetails}       // AJUSTADO
           >
             <Text style={styles.primaryButtonText}>Ver detalhes</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.secondaryButton} onPress={onPressEdit}>
+          <TouchableOpacity
+            style={styles.secondaryButton}
+            onPress={onPressEdit}          // AJUSTADO
+          >
             <Text style={styles.secondaryButtonText}>Editar</Text>
           </TouchableOpacity>
 

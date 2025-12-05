@@ -96,6 +96,7 @@ export default function GoalInvestmentCard({ goal, isPro, onPress }: Props) {
     }
     return null;
   }, [goal]);
+  console.log("INVESTMENT CARD GOAL:", goal);
 
   const situationLabel = formatSituationLabel(goal.aheadOrBehindMonths);
   const insight = useMemo(() => buildTechnicalInsight(goal), [goal]);

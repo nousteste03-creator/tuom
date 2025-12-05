@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { BlurView } from "expo-blur";
 import { useGoals } from "@/hooks/useGoals";
+import ModalPremiumPaywall from "@/components/app/common/ModalPremiumPaywall";
 
 /* -----------------------------------------------------
    Normaliza data DD/MM/YYYY → YYYY-MM-DD para Postgres
@@ -62,6 +63,9 @@ export default function CreateInvestmentModal({ visible, onClose }: Props) {
   const [startDate, setStartDate] = useState("");
   const [monthly, setMonthly] = useState("");
 
+  // NOVO → Estado para abrir o paywall
+  const [showPaywall, setShowPaywall] = useState(false);
+
   /* LOG — mostrar abertura / fechamento */
   useEffect(() => {
     console.log(
@@ -102,11 +106,10 @@ export default function CreateInvestmentModal({ visible, onClose }: Props) {
     const targetValue = Number(target.replace(",", ".")) || 0;
     const currentValue = Number(current.replace(",", ".")) || 0;
     const monthlyValue =
-      monthly.trim().length > 0
-        ? Number(monthly.replace(",", "."))
-        : null;
+      monthly.trim().length > 0 ? Number(monthly.replace(",", ".")) : null;
 
-    const normalizedStart = normalizeDate(startDate) ?? new Date().toISOString();
+    const normalizedStart =
+      normalizeDate(startDate) ?? new Date().toISOString();
 
     const payload = {
       type: "investment",
@@ -121,10 +124,17 @@ export default function CreateInvestmentModal({ visible, onClose }: Props) {
 
     const id = await createGoal(payload);
 
+    // NOVO → Se o hook retornar PAYWALL, abrir modal premium
+    if (id === "PAYWALL") {
+      console.log("DEBUG → PAYWALL DETECTADO — abrindo modal premium");
+      setShowPaywall(true);
+      return; // Não fecha o modal original
+    }
+
     console.log("DEBUG/CreateInvestmentModal → createGoal() retornou id:", id);
 
     await reload();
-    onClose();
+    setTimeout(() => onClose(), 120);
   }
 
   if (!visible) return null;
@@ -213,7 +223,9 @@ export default function CreateInvestmentModal({ visible, onClose }: Props) {
             </View>
 
             <View style={styles.card}>
-              <Text style={styles.label}>Data início (AAAA-MM-DD ou DD/MM/AAAA)</Text>
+              <Text style={styles.label}>
+                Data início (AAAA-MM-DD ou DD/MM/AAAA)
+              </Text>
               <TextInput
                 placeholder="2025-01-05"
                 placeholderTextColor="rgba(255,255,255,0.3)"
@@ -237,10 +249,27 @@ export default function CreateInvestmentModal({ visible, onClose }: Props) {
           </ScrollView>
         </KeyboardAvoidingView>
       </BlurView>
+
+      {/* -------------------------------------------
+          PAYWALL PREMIUM — sobreposto ao modal
+      -------------------------------------------- */}
+      {showPaywall && (
+        <ModalPremiumPaywall
+          visible={showPaywall}
+          onClose={() => setShowPaywall(false)}
+          onUpgrade={() => {
+            console.log("DEBUG → User clicou em Upgrade");
+            // aqui você pode integrar com checkout no futuro
+          }}
+        />
+      )}
     </Animated.View>
   );
 }
 
+/* ---------------------------------------------------------
+   STYLES — não alterei nada
+----------------------------------------------------------*/
 const styles = StyleSheet.create({
   overlay: {
     position: "absolute",

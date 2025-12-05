@@ -50,6 +50,16 @@ export type GoalWithStats = {
   installments: Installment[];
 
   aheadOrBehindMonths: number | null;
+
+  // Projeção específica para investimentos (dados brutos, sem texto)
+  projection?: {
+    monthly: number | null;
+    remaining: number;
+    monthsToGoal: number | null;
+    projectedEndDate: string | null;
+    missedContribution: boolean;
+    curveFuture: { date: string; value: number }[];
+  };
 };
 
 /* RAW Supabase */
@@ -125,7 +135,6 @@ export type UseGoalsReturn = {
     autoRuleMonthly?: number | null;
     notes?: string | null;
 
-    // campos opcionais para dívidas com parcelas
     installmentsCount?: number;
     installmentAmount?: number;
     firstDueDate?: string;
@@ -181,7 +190,8 @@ function computeGoalStats(
   const now = new Date();
 
   const title = goal.title ?? "Meta";
-  const type = (goal.type as GoalType) ?? "goal";
+  const rawType = goal.type ?? goal.tipo ?? "goal";
+  const type = rawType as GoalType;
 
   const targetAmount = Number(goal.target_amount ?? 0);
   const currentAmount = Number(goal.current_amount ?? 0);
@@ -260,6 +270,75 @@ function computeGoalStats(
 }
 
 /* ============================================================
+   PROJEÇÃO PARA INVESTIMENTOS (autoRuleMonthly)
+============================================================ */
+
+function computeInvestmentProjection(goal: GoalWithStats) {
+  if (goal.type !== "investment") return null;
+
+  const monthly = goal.autoRuleMonthly ?? null;
+  if (!monthly || monthly <= 0) return null;
+
+  const now = new Date();
+  const today = now.getDate();
+
+  const remaining = goal.remainingAmount;
+  if (remaining <= 0) {
+    return {
+      monthly,
+      remaining: 0,
+      monthsToGoal: 0,
+      projectedEndDate: now.toISOString().split("T")[0],
+      missedContribution: false,
+      curveFuture: [],
+    };
+  }
+
+  // TODO: depois ler do banco o dia real; por enquanto fixo em 10
+  const dueDay = 10;
+  const missedContribution = today > dueDay;
+
+  let adjustedRemaining = remaining;
+  if (missedContribution) {
+    adjustedRemaining += monthly;
+  }
+
+  const monthsToGoal =
+    monthly > 0 ? Math.ceil(adjustedRemaining / monthly) : null;
+
+  let projectedEndDate: string | null = null;
+  if (monthsToGoal !== null) {
+    const cursor = new Date(now);
+    cursor.setMonth(cursor.getMonth() + monthsToGoal);
+    projectedEndDate = cursor.toISOString().split("T")[0];
+  }
+
+  const curveFuture: { date: string; value: number }[] = [];
+  let accumulated = goal.currentAmount;
+  let cursor = new Date(now);
+
+  for (let i = 0; i < (monthsToGoal ?? 0); i++) {
+    cursor = new Date(cursor);
+    cursor.setMonth(cursor.getMonth() + 1);
+    accumulated += monthly;
+
+    curveFuture.push({
+      date: cursor.toISOString().split("T")[0],
+      value: accumulated,
+    });
+  }
+
+  return {
+    monthly,
+    remaining,
+    monthsToGoal,
+    projectedEndDate,
+    missedContribution,
+    curveFuture,
+  };
+}
+
+/* ============================================================
    Funções auxiliares para parcelas
 ============================================================ */
 
@@ -292,7 +371,7 @@ async function generateInstallments(goalId: string, input: any, userId: string) 
       user_id: userId,
       goal_id: goalId,
       due_date: addMonths(new Date(firstDate), i),
-      amount: amount,
+      amount,
       status: "upcoming",
       sequence: i + 1,
       paid_at: null,
@@ -302,12 +381,9 @@ async function generateInstallments(goalId: string, input: any, userId: string) 
   const { error } = await supabase.from("goal_installments").insert(rows);
 
   if (error) {
-    console.log(
-      "ERROR/generateInstallments → erro ao inserir parcelas:",
-      error
-    );
+    console.log("ERROR/generateInstallments:", error);
   } else {
-    console.log("DEBUG/generateInstallments → parcelas geradas com sucesso");
+    console.log("DEBUG → parcelas geradas com sucesso");
   }
 }
 
@@ -363,17 +439,71 @@ export function useGoals(): UseGoalsReturn {
       return;
     }
 
-    const { data: goalsData } = await supabase
+    const { data: goalsData = [] } = await supabase
       .from("goals")
       .select("*")
       .eq("user_id", user.id)
       .order("created_at", { ascending: true });
 
-    const { data: installmentsData } = await supabase
+    const { data: installmentsData = [] } = await supabase
       .from("goal_installments")
       .select("*")
       .eq("user_id", user.id)
       .order("due_date", { ascending: true });
+
+    /* ---------------------------------------------------------
+       RECONCILIAÇÃO PROFISSIONAL:
+       Garante que metas antigas respeitem a soma das parcelas
+       pagas, sem duplicar (apenas se current_amount < soma).
+    ----------------------------------------------------------*/
+
+    try {
+      console.log("DEBUG/PAYMENT-RECONCILE → iniciando");
+
+      const paidByGoal: Record<string, number> = {};
+
+      for (const inst of installmentsData) {
+        if (inst.status === "paid" && inst.goal_id && inst.amount != null) {
+          const key = inst.goal_id;
+          const prev = paidByGoal[key] ?? 0;
+          paidByGoal[key] = prev + Number(inst.amount || 0);
+        }
+      }
+
+      for (const g of goalsData) {
+        const paid = paidByGoal[g.id] ?? 0;
+        if (paid <= 0) continue;
+
+        const current = Number(g.current_amount || 0);
+
+        // Só corrige se a soma das parcelas pagas for MAIOR
+        // que o current_amount (evita reduzir ou duplicar).
+        if (paid > current) {
+          console.log("DEBUG/PAYMENT-RECONCILE → corrigindo meta:", {
+            goalId: g.id,
+            oldCurrent: current,
+            paidSum: paid,
+          });
+
+          const { error: updErr } = await supabase
+            .from("goals")
+            .update({ current_amount: paid })
+            .eq("id", g.id);
+
+          if (!updErr) {
+            // Atualiza o array em memória também
+            g.current_amount = paid;
+          } else {
+            console.log(
+              "ERROR/PAYMENT-RECONCILE → erro ao atualizar meta:",
+              updErr
+            );
+          }
+        }
+      }
+    } catch (err) {
+      console.log("ERROR/PAYMENT-RECONCILE → exceção:", err);
+    }
 
     setRawGoals(goalsData || []);
     setRawInstallments(installmentsData || []);
@@ -414,13 +544,18 @@ export function useGoals(): UseGoalsReturn {
 
   /* BUILD GOALS ---------------------------------------------- */
 
-  const allGoals: GoalWithStats[] = useMemo(() => {
-    return rawGoals.map((g) =>
-      computeGoalStats(g, installmentsByGoalId[g.id] || [])
-    );
-  }, [rawGoals, installmentsByGoalId]);
+  const allGoals = useMemo(() => {
+    return rawGoals.map((g) => {
+      const base = computeGoalStats(g, installmentsByGoalId[g.id] || []);
 
-  /* GROUPS ---------------------------------------------------- */
+      if (base.type === "investment") {
+        const projection = computeInvestmentProjection(base);
+        return { ...base, projection };
+      }
+
+      return base;
+    });
+  }, [rawGoals, installmentsByGoalId]);
 
   const goals = useMemo(
     () => allGoals.filter((g) => g.type === "goal"),
@@ -440,6 +575,7 @@ export function useGoals(): UseGoalsReturn {
   const primaryGoal = useMemo(() => {
     const explicit = allGoals.find((g) => g.isPrimary);
     if (explicit) return explicit;
+
     return goals.find((g) => g.status === "active") ?? null;
   }, [allGoals, goals]);
 
@@ -450,18 +586,16 @@ export function useGoals(): UseGoalsReturn {
   const cannotCreateReason =
     !canCreateNewGoal && !isPro ? "free_limit" : undefined;
 
-  /* MONTHLY OUTFLOW ------------------------------------------ */
+  /* OUTFLOW --------------------------------------------------- */
 
   const monthlyDebtOutflow = useMemo(
     () => computeMonthlyOutflowForCurrentMonth(debts, "debt"),
     [debts]
   );
-
   const monthlyGoalsOutflow = useMemo(
     () => computeMonthlyOutflowForCurrentMonth(goals, "goal"),
     [goals]
   );
-
   const monthlyInvestmentsOutflow = useMemo(
     () => computeMonthlyOutflowForCurrentMonth(investments, "investment"),
     [investments]
@@ -470,7 +604,7 @@ export function useGoals(): UseGoalsReturn {
   const monthlyTotalExpenses =
     monthlyDebtOutflow + monthlyGoalsOutflow + monthlyInvestmentsOutflow;
 
-  /* AUX HELPERS ---------------------------------------------- */
+  /* HELPERS ---------------------------------------------------- */
 
   const goalProgress = useCallback(
     (id: string) =>
@@ -494,57 +628,36 @@ export function useGoals(): UseGoalsReturn {
   );
 
   const installmentsByGoal = useCallback(
-    (id: string) =>
-      allGoals.find((g) => g.id === id)?.installments ?? [],
+    (id: string) => allGoals.find((g) => g.id === id)?.installments ?? [],
     [allGoals]
   );
 
-  /* ACTIONS -------------------------------------------------- */
-
-  const setPrimaryGoal = useCallback(
-    async (goalId: string) => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
-
-      await supabase
-        .from("goals")
-        .update({ is_primary: false })
-        .eq("user_id", user.id);
-      await supabase.from("goals").update({ is_primary: true }).eq("id", goalId);
-
-      await reload();
-    },
-    [reload]
-  );
-
-  /* createGoal COM PARCELAS ---------------------------------- */
+  /* CREATEGOAL ------------------------------------------------ */
 
   const createGoal = useCallback(
-    async (input: {
-      type: GoalType;
-      debtStyle?: DebtStyle;
-      title: string;
-      targetAmount: number;
-      currentAmount?: number;
-      startDate?: string;
-      endDate?: string | null;
-      autoRuleMonthly?: number | null;
-      notes?: string | null;
-      installmentsCount?: number;
-      installmentAmount?: number;
-      firstDueDate?: string;
-    }) => {
+    async (input: any) => {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-
       if (!user) return null;
 
-      if (input.type === "goal" && !isPro && !canCreateNewGoal) {
-        console.warn("FREE LIMIT");
-        return null;
+      const type = input.type;
+      console.log("DEBUG PAYWALL → tipo solicitado:", type);
+      console.log("VERSÃO 2025-DEC-05 → CREATEGOAL ATIVO");
+
+      if (!isPro) {
+        const { count, error } = await supabase
+          .from("goals")
+          .select("*", { head: true, count: "exact" })
+          .eq("user_id", user.id)
+          .eq("type", type);
+
+        console.log("DEBUG PAYWALL → count Supabase:", count, "erro:", error);
+
+        if (!error && (count ?? 0) >= 1) {
+          console.log("PAYWALL ATIVO → FREE tentou criar outro", type);
+          return "PAYWALL";
+        }
       }
 
       console.log("DEBUG/useGoals.createGoal → payload recebido:", input);
@@ -563,11 +676,6 @@ export function useGoals(): UseGoalsReturn {
         status: "active",
       };
 
-      console.log(
-        "DEBUG/useGoals.createGoal → payload FINAL enviado ao Supabase:",
-        payload
-      );
-
       const { data, error } = await supabase
         .from("goals")
         .insert(payload)
@@ -580,12 +688,8 @@ export function useGoals(): UseGoalsReturn {
       }
 
       const goalId = data?.id;
-      console.log(
-        "DEBUG/useGoals.createGoal → insert OK, id retornado:",
-        goalId
-      );
+      console.log("DEBUG/useGoals.createGoal → insert OK:", goalId);
 
-      // Gera parcelas se for dívida com dados completos
       if (
         goalId &&
         input.type === "debt" &&
@@ -594,22 +698,36 @@ export function useGoals(): UseGoalsReturn {
         input.installmentAmount &&
         input.firstDueDate
       ) {
-        console.log(
-          "DEBUG/useGoals.createGoal → gerando parcelas automáticas..."
-        );
+        console.log("DEBUG → gerando parcelas...");
         await generateInstallments(goalId, input, user.id);
       }
 
       await reload();
-      return goalId ?? null;
+      await new Promise((r) => setTimeout(r, 80));
+
+      return goalId;
     },
-    [isPro, canCreateNewGoal, reload]
+    [isPro, reload]
   );
 
   /* UPDATE ---------------------------------------------------- */
 
   const updateGoal = useCallback(
-    async (goalId, patch) => {
+    async (
+      goalId: string,
+      patch: Partial<{
+        title: string;
+        targetAmount: number;
+        currentAmount: number;
+        startDate: string;
+        endDate: string | null;
+        status: "active" | "paused" | "completed" | "cancelled";
+        autoRuleMonthly: number | null;
+        debtStyle: DebtStyle | null;
+        notes: string | null;
+        isPrimary: boolean;
+      }>
+    ) => {
       const updates: any = {};
 
       if (patch.title !== undefined) updates.title = patch.title;
@@ -633,11 +751,83 @@ export function useGoals(): UseGoalsReturn {
     [reload]
   );
 
+  /* SET PRIMARY ------------------------------------------------ */
+
+  const setPrimaryGoal = useCallback(
+    async (goalId: string) => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      await supabase
+        .from("goals")
+        .update({ is_primary: false })
+        .eq("user_id", user.id);
+
+      await supabase
+        .from("goals")
+        .update({ is_primary: true })
+        .eq("id", goalId);
+
+      await reload();
+    },
+    [reload]
+  );
+
   /* INSTALLMENT ACTIONS --------------------------------------- */
 
   const markInstallmentPaid = useCallback(
     async (installmentId: string) => {
-      await supabase
+      console.log("DEBUG markInstallmentPaid → iniciando:", installmentId);
+
+      // 1) Buscar parcela
+      const { data: instRows, error: instErr } = await supabase
+        .from("goal_installments")
+        .select("*")
+        .eq("id", installmentId)
+        .limit(1);
+
+      if (instErr || !instRows || instRows.length === 0) {
+        console.log("ERROR → parcela não encontrada:", instErr);
+        return;
+      }
+
+      const installment = instRows[0];
+      const goalId = installment.goal_id;
+      const amount = Number(installment.amount || 0);
+
+      console.log("DEBUG → parcela encontrada:", installment);
+
+      // 2) Buscar meta da parcela
+      const { data: goalRows, error: goalErr } = await supabase
+        .from("goals")
+        .select("*")
+        .eq("id", goalId)
+        .limit(1);
+
+      if (goalErr || !goalRows || goalRows.length === 0) {
+        console.log("ERROR → goal não encontrada:", goalErr);
+        return;
+      }
+
+      const goal = goalRows[0];
+      const current = Number(goal.current_amount || 0);
+      const newCurrent = current + amount;
+
+      console.log(
+        "DEBUG → Atualizando meta:",
+        goalId,
+        "current:",
+        current,
+        " + parcela:",
+        amount,
+        " = ",
+        newCurrent
+      );
+
+      // 3) Marcar parcela como paga
+      const { error: updInstErr } = await supabase
         .from("goal_installments")
         .update({
           status: "paid",
@@ -645,13 +835,41 @@ export function useGoals(): UseGoalsReturn {
         })
         .eq("id", installmentId);
 
+      if (updInstErr) {
+        console.log("ERROR → ao atualizar parcela:", updInstErr);
+        return;
+      }
+
+      // 4) Atualizar meta
+      const { error: updGoalErr } = await supabase
+        .from("goals")
+        .update({
+          current_amount: newCurrent,
+        })
+        .eq("id", goalId);
+
+      if (updGoalErr) {
+        console.log("ERROR → ao atualizar meta:", updGoalErr);
+        return;
+      }
+
+      console.log("DEBUG → parcela paga + meta atualizada com sucesso");
+
+      // 5) Reload final
       await reload();
     },
     [reload]
   );
 
   const updateInstallment = useCallback(
-    async (installmentId, patch) => {
+    async (
+      installmentId: string,
+      patch: Partial<{
+        dueDate: string;
+        amount: number;
+        status: InstallmentStatus;
+      }>
+    ) => {
       const updates: any = {};
 
       if (patch.dueDate !== undefined) updates.due_date = patch.dueDate;
@@ -662,6 +880,7 @@ export function useGoals(): UseGoalsReturn {
         .from("goal_installments")
         .update(updates)
         .eq("id", installmentId);
+
       await reload();
     },
     [reload]
@@ -704,3 +923,5 @@ export function useGoals(): UseGoalsReturn {
     updateInstallment,
   };
 }
+
+/* FIM DO HOOK useGoals */

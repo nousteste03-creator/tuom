@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { BlurView } from "expo-blur";
 import { useGoals } from "@/hooks/useGoals";
+import ModalPremiumPaywall from "@/components/app/common/ModalPremiumPaywall";
 
 /* ===========================================================
    Normalização de datas
@@ -49,15 +50,16 @@ export default function CreateDebtModal({ visible, onClose }: Props) {
   const [installments, setInstallments] = useState("12");
   const [firstDate, setFirstDate] = useState("");
 
-  // Ajuste necessário -> substitui "fixed" por "loan"
+  // Estilo da dívida
   const [debtStyle, setDebtStyle] =
     useState<"loan" | "credit_card" | "financing">("loan");
 
+  // PAYWALL
+  const [showPaywall, setShowPaywall] = useState(false);
+
   /* LOG modal */
   useEffect(() => {
-    console.log(
-      `DEBUG/CreateDebtModal → modal ${visible ? "ABERTO" : "FECHADO"}`
-    );
+    console.log(`DEBUG/CreateDebtModal → modal ${visible ? "ABERTO" : "FECHADO"}`);
   }, [visible]);
 
   /* Animação */
@@ -87,47 +89,35 @@ export default function CreateDebtModal({ visible, onClose }: Props) {
     const paidValue = Number(paid.replace(",", ".")) || 0;
     const qty = Number(installments) || 1;
 
+    const installmentAmount = (totalValue - paidValue) / qty;
+
     const normalizedFirstDate =
       normalizeDateForSupabase(firstDate) ?? new Date().toISOString();
 
-    console.log("DEBUG/CreateDebtModal → payload createGoal:", {
+    const payload = {
       type: "debt",
       title,
       targetAmount: totalValue,
       currentAmount: paidValue,
       debtStyle,
       installmentsCount: qty,
-      installmentAmount: (totalValue - paidValue) / qty,
+      installmentAmount,
       firstDueDate: normalizedFirstDate,
-    });
+      startDate: new Date().toISOString(),
+    };
 
-    let goalId: string | null = null;
+    console.log("DEBUG/CreateDebtModal → payload FINAL:", payload);
 
-    try {
-      goalId = await createGoal({
-        type: "debt",
-        title,
-        targetAmount: totalValue,
-        currentAmount: paidValue,
-        debtStyle, // agora válido
-        startDate: new Date().toISOString(),
+    const id = await createGoal(payload);
 
-        // ENVIA OS DADOS NECESSÁRIOS PARA GERAR PARCELAS NO HOOK
-        installmentsCount: qty,
-        installmentAmount: (totalValue - paidValue) / qty,
-        firstDueDate: normalizedFirstDate,
-      });
-    } catch (err) {
-      console.log("ERROR/CreateDebtModal → erro:", err);
+    // PAYWALL DETECTADO
+    if (id === "PAYWALL") {
+      console.log("DEBUG/CreateDebtModal → PAYWALL DETECTADO");
+      setShowPaywall(true);
       return;
     }
 
-    console.log("DEBUG/CreateDebtModal → createGoal retornou:", goalId);
-
-    if (!goalId) {
-      console.log("ERROR → goalId NULL, não foi possível criar parcelas");
-      return;
-    }
+    console.log("DEBUG/CreateDebtModal → createGoal retornou:", id);
 
     onClose();
   };
@@ -207,12 +197,6 @@ export default function CreateDebtModal({ visible, onClose }: Props) {
               />
             </View>
 
-            {/* FUTURO: picker para type de dívida */}
-            <View style={styles.card}>
-              <Text style={styles.label}>Tipo</Text>
-              <Text style={{ color: "white", fontSize: 16 }}>Empréstimo (loan)</Text>
-            </View>
-
             <TouchableOpacity style={styles.button} onPress={handleCreate}>
               <Text style={styles.buttonText}>Criar Dívida</Text>
             </TouchableOpacity>
@@ -226,6 +210,15 @@ export default function CreateDebtModal({ visible, onClose }: Props) {
           </ScrollView>
         </KeyboardAvoidingView>
       </BlurView>
+
+      {/* PAYWALL PREMIUM */}
+      {showPaywall && (
+        <ModalPremiumPaywall
+          visible={showPaywall}
+          onClose={() => setShowPaywall(false)}
+          onUpgrade={() => console.log("DEBUG → Upgrade clicado")}
+        />
+      )}
     </Animated.View>
   );
 }

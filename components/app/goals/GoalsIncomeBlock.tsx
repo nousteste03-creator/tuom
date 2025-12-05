@@ -91,7 +91,7 @@ export default function GoalsIncomeBlock() {
       {/* BOTÃO */}
       <TouchableOpacity
         activeOpacity={0.85}
-        onPress={() => router.push("/finance/net-worth")}
+        onPress={() => router.push("/goals/create?type=income")}
       >
         <LinearGradient
           colors={["#d8eceeff", "#636594ff"]}

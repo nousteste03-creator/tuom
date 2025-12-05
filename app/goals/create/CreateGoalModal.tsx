@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { BlurView } from "expo-blur";
 import { useGoals } from "@/hooks/useGoals";
+import ModalPremiumPaywall from "@/components/app/common/ModalPremiumPaywall"; // NOVO
 
 type Props = {
   visible: boolean;
@@ -24,23 +25,23 @@ type Props = {
 function normalizeDateForSupabase(input: string): string | null {
   if (!input) return null;
 
-  // Remove espaços
   const date = input.trim();
 
-  // Caso já esteja no formato YYYY-MM-DD → retorna direto
   if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     console.log("DEBUG normalizeDate → já está correto:", date);
     return date;
   }
 
-  // Tenta converter formato brasileiro
   const match = date.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
   if (match) {
     let [_, d, m, y] = match;
 
-    if (y.length === 2) y = "20" + y; // ex: 26 → 2026
+    if (y.length === 2) y = "20" + y;
 
-    const normalized = `${y.padStart(4, "0")}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+    const normalized = `${y.padStart(4, "0")}-${m.padStart(
+      2,
+      "0"
+    )}-${d.padStart(2, "0")}`;
 
     console.log("DEBUG normalizeDate → convertido:", {
       original: date,
@@ -50,7 +51,6 @@ function normalizeDateForSupabase(input: string): string | null {
     return normalized;
   }
 
-  // Se não reconheceu, retorna null (Supabase aceita null)
   console.log("DEBUG normalizeDate → formato inválido:", date);
   return null;
 }
@@ -64,24 +64,19 @@ export default function CreateGoalModal({ visible, onClose }: Props) {
   const [targetAmount, setTargetAmount] = useState("");
   const [endDate, setEndDate] = useState("");
 
+  // PAYWALL — NOVO
+  const [showPaywall, setShowPaywall] = useState(false);
+
   // Animações
   const fade = useRef(new Animated.Value(0)).current;
   const slide = useRef(new Animated.Value(20)).current;
 
-  /* -----------------------------------------
-     LOG — Abertura / fechamento do modal
-  ------------------------------------------*/
   useEffect(() => {
-    if (visible) {
-      console.log("DEBUG/CreateGoalModal → modal ABERTO");
-    } else {
-      console.log("DEBUG/CreateGoalModal → modal FECHADO");
-    }
+    console.log(
+      `DEBUG/CreateGoalModal → modal ${visible ? "ABERTO" : "FECHADO"}`
+    );
   }, [visible]);
 
-  /* -----------------------------------------
-     Animações
-  ------------------------------------------*/
   useEffect(() => {
     if (visible) {
       Animated.parallel([
@@ -97,20 +92,10 @@ export default function CreateGoalModal({ visible, onClose }: Props) {
         }),
       ]).start();
     } else {
-      Animated.parallel([
-        Animated.timing(fade, {
-          toValue: 0,
-          duration: 180,
-          useNativeDriver: true,
-        }),
-        Animated.timing(slide, {
-          toValue: 20,
-          duration: 180,
-          useNativeDriver: true,
-        }),
-      ]).start();
+      fade.setValue(0);
+      slide.setValue(20);
     }
-  }, [visible, fade, slide]);
+  }, [visible]);
 
   /* -----------------------------------------
      SUBMIT — Criar meta
@@ -119,7 +104,7 @@ export default function CreateGoalModal({ visible, onClose }: Props) {
     console.log("DEBUG/CreateGoalModal → handleCreate() chamado");
 
     if (!title || !targetAmount) {
-      console.log("DEBUG/CreateGoalModal → campos inválidos:", {
+      console.log("DEBUG → campos inválidos:", {
         title,
         targetAmount,
         currentAmount,
@@ -131,7 +116,6 @@ export default function CreateGoalModal({ visible, onClose }: Props) {
     const target = Number(targetAmount) || 0;
     const current = Number(currentAmount || 0);
 
-    // NORMALIZAÇÃO DA DATA AQUI
     const normalizedEndDate = normalizeDateForSupabase(endDate);
 
     const payload = {
@@ -144,15 +128,18 @@ export default function CreateGoalModal({ visible, onClose }: Props) {
 
     console.log("DEBUG/CreateGoalModal → Enviando createGoal()", payload);
 
-    try {
-      const id = await createGoal(payload);
+    const id = await createGoal(payload);
 
-      console.log("DEBUG/CreateGoalModal → createGoal() retornou id:", id);
-    } catch (err) {
-      console.log("ERROR/CreateGoalModal → Erro ao criar meta:", err);
+    // PAYWALL DETECTADO
+    if (id === "PAYWALL") {
+      console.log("DEBUG → PAYWALL DETECTADO — abrindo ModalPremiumPaywall");
+      setShowPaywall(true);
+      return; // Não fecha o modal de criação
     }
 
-    onClose();
+    console.log("DEBUG/CreateGoalModal → createGoal() retornou id:", id);
+
+    onClose(); // Só fecha se criou com sucesso
   };
 
   const disabled = !title || !targetAmount;
@@ -181,10 +168,8 @@ export default function CreateGoalModal({ visible, onClose }: Props) {
             }}
             showsVerticalScrollIndicator={false}
           >
-            {/* HEADER */}
             <Text style={styles.header}>Criar Meta</Text>
 
-            {/* CARD — Nome */}
             <View style={styles.card}>
               <Text style={styles.label}>Nome da meta</Text>
               <TextInput
@@ -196,7 +181,6 @@ export default function CreateGoalModal({ visible, onClose }: Props) {
               />
             </View>
 
-            {/* CARD — Valor Atual */}
             <View style={styles.card}>
               <Text style={styles.label}>Quanto já tenho?</Text>
               <TextInput
@@ -209,7 +193,6 @@ export default function CreateGoalModal({ visible, onClose }: Props) {
               />
             </View>
 
-            {/* CARD — Valor Final */}
             <View style={styles.card}>
               <Text style={styles.label}>Valor desejado</Text>
               <TextInput
@@ -222,7 +205,6 @@ export default function CreateGoalModal({ visible, onClose }: Props) {
               />
             </View>
 
-            {/* CARD — Data Final */}
             <View style={styles.card}>
               <Text style={styles.label}>Data limite (opcional)</Text>
               <TextInput
@@ -234,7 +216,6 @@ export default function CreateGoalModal({ visible, onClose }: Props) {
               />
             </View>
 
-            {/* BOTÃO */}
             <TouchableOpacity
               onPress={handleCreate}
               disabled={disabled}
@@ -252,6 +233,15 @@ export default function CreateGoalModal({ visible, onClose }: Props) {
           </ScrollView>
         </KeyboardAvoidingView>
       </BlurView>
+
+      {/* PAYWALL PREMIUM */}
+      {showPaywall && (
+        <ModalPremiumPaywall
+          visible={showPaywall}
+          onClose={() => setShowPaywall(false)}
+          onUpgrade={() => console.log("DEBUG → Upgrade")}
+        />
+      )}
     </Animated.View>
   );
 }
@@ -266,14 +256,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.55)",
   },
-
   header: {
     color: "white",
     fontSize: 20,
     fontWeight: "700",
     marginBottom: 18,
   },
-
   card: {
     backgroundColor: "rgba(255,255,255,0.06)",
     borderRadius: 16,
@@ -282,33 +270,28 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.08)",
   },
-
   label: {
     color: "rgba(255,255,255,0.6)",
     fontSize: 13,
     marginBottom: 6,
   },
-
   input: {
     color: "white",
     fontSize: 16,
     paddingVertical: 4,
   },
-
   button: {
     backgroundColor: "#d8eceeff",
     paddingVertical: 14,
     borderRadius: 14,
     marginTop: 16,
   },
-
   buttonText: {
     color: "636594ff",
     textAlign: "center",
     fontWeight: "600",
     fontSize: 15,
   },
-
   cancel: {
     color: "rgba(255,255,255,0.6)",
     fontSize: 14,

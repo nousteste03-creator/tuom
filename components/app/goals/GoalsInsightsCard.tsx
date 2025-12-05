@@ -9,7 +9,6 @@ import {
   TouchableOpacity,
 } from "react-native";
 import { BlurView } from "expo-blur";
-import type { GoalWithStats } from "@/hooks/useGoals";
 
 const brandFont = Platform.select({
   ios: "SF Pro Display",
@@ -17,88 +16,25 @@ const brandFont = Platform.select({
   default: "System",
 });
 
+type Insight = {
+  id: string;
+  type: string;
+  severity: "positive" | "warning" | "danger" | "neutral";
+  title: string;
+  message: string;
+};
+
 type Props = {
-  goal: GoalWithStats;
+  insight: Insight;
   isPro: boolean;
   onPressUpgrade?: () => void;
 };
 
-/* ===========================================================
-   INSIGHT DINÂMICO — baseado nos dados reais da meta
-=========================================================== */
-function buildInsight(goal: GoalWithStats) {
-  const { type, aheadOrBehindMonths, remainingAmount, progressPercent } = goal;
-
-  // META NORMAL
-  if (type === "goal") {
-    if (aheadOrBehindMonths != null) {
-      if (aheadOrBehindMonths < -0.5) {
-        return {
-          title: "Abaixo do plano",
-          desc:
-            "Seu progresso está atrás do esperado para esta data. Reavaliar o aporte mensal pode evitar atrasos futuros.",
-        };
-      }
-      if (aheadOrBehindMonths > 0.5) {
-        return {
-          title: "Acima do ritmo esperado",
-          desc:
-            "Você está avançando além do planejado. Mantendo esse ritmo, pode concluir sua meta antes do previsto.",
-        };
-      }
-    }
-
-    if (progressPercent < 20) {
-      return {
-        title: "Primeiros passos",
-        desc:
-          "Você está começando a construir essa meta. Continue com pequenas contribuições regulares para criar consistência.",
-      };
-    }
-
-    if (remainingAmount < 200) {
-      return {
-        title: "Quase lá",
-        desc:
-          "Faltam apenas alguns passos para alcançar sua meta. Mantenha o foco nos aportes finais.",
-      };
-    }
-
-    return {
-      title: "Ritmo estável",
-      desc:
-        "Sua meta está avançando de forma consistente. Continue revisando mensalmente para manter o equilíbrio.",
-    };
-  }
-
-  // DÍVIDA
-  if (type === "debt") {
-    return {
-      title: "Gestão de dívida saudável",
-      desc:
-        "Você está reduzindo sua dívida continuamente. Revisar juros e negociar taxas pode melhorar ainda mais seu progresso.",
-    };
-  }
-
-  // INVESTIMENTO
-  if (type === "investment") {
-    return {
-      title: "Disciplina de aportes",
-      desc:
-        "Manter constância nos aportes é uma das chaves para o crescimento. Avalie oportunidades de diversificação.",
-    };
-  }
-
-  return {
-    title: "Insight indisponível",
-    desc: "Não foi possível gerar análise para este tipo de meta.",
-  };
-}
-
-/* ===========================================================
-   COMPONENTE
-=========================================================== */
-export default function GoalsInsightsCard({ goal, isPro, onPressUpgrade }: Props) {
+export default function GoalsInsightsCard({
+  insight,
+  isPro,
+  onPressUpgrade,
+}: Props) {
   const fade = useRef(new Animated.Value(0)).current;
   const slide = useRef(new Animated.Value(12)).current;
 
@@ -117,15 +53,9 @@ export default function GoalsInsightsCard({ goal, isPro, onPressUpgrade }: Props
     ]).start();
   }, []);
 
-  // Debug opcional
-  console.log("DEBUG GoalsInsightsCard:", {
-    id: goal.id,
-    title: goal.title,
-    progressPercent: goal.progressPercent,
-    aheadOrBehindMonths: goal.aheadOrBehindMonths,
-    remaining: goal.remainingAmount,
-  });
-
+  /* ------------------------------------------------------------
+     PAYWALL
+  ------------------------------------------------------------ */
   if (!isPro) {
     return (
       <TouchableOpacity onPress={onPressUpgrade} activeOpacity={0.9}>
@@ -140,8 +70,9 @@ export default function GoalsInsightsCard({ goal, isPro, onPressUpgrade }: Props
     );
   }
 
-  const insight = buildInsight(goal);
-
+  /* ------------------------------------------------------------
+     CARD DE INSIGHT PREMIUM
+  ------------------------------------------------------------ */
   return (
     <Animated.View
       style={{
@@ -152,7 +83,15 @@ export default function GoalsInsightsCard({ goal, isPro, onPressUpgrade }: Props
       <BlurView intensity={35} tint="dark" style={styles.card}>
         {/* HEADER */}
         <View style={styles.headerRow}>
-          <View style={styles.iconDot} />
+          <View
+            style={[
+              styles.iconDot,
+              insight.severity === "positive" && { backgroundColor: "#4cd964" },
+              insight.severity === "warning" && { backgroundColor: "#ffcc00" },
+              insight.severity === "danger" && { backgroundColor: "#ff453a" },
+              insight.severity === "neutral" && { backgroundColor: "#8e8e93" },
+            ]}
+          />
           <Text style={styles.headerText}>Insight Premium</Text>
         </View>
 
@@ -160,7 +99,7 @@ export default function GoalsInsightsCard({ goal, isPro, onPressUpgrade }: Props
         <Text style={styles.title}>{insight.title}</Text>
 
         {/* DESCRIÇÃO */}
-        <Text style={styles.desc}>{insight.desc}</Text>
+        <Text style={styles.desc}>{insight.message}</Text>
       </BlurView>
     </Animated.View>
   );
@@ -189,7 +128,6 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: "rgba(255,255,255,0.45)",
     marginRight: 8,
   },
   headerText: {

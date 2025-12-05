@@ -41,15 +41,15 @@ export default function TabsLayout() {
       />
 
       {/* METAS */}
-      <Tabs.Screen
-        name="goals"
-        options={{
-          title: "Metas",
-          tabBarIcon: ({ color }) => (
-            <Icon name="flag-outline" color={color} size={22} />
-          ),
-        }}
-      />
+<Tabs.Screen
+  name="metas"
+  options={{
+    title: "Metas",
+    tabBarIcon: ({ color }) => (
+      <Icon name="flag-outline" color={color} size={22} />
+    ),
+  }}
+/>
 
       {/* INSIGHTS */}
       <Tabs.Screen

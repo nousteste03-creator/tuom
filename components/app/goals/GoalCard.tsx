@@ -30,6 +30,7 @@ function formatCurrency(v: number) {
 }
 
 export default function GoalCard({ goal, onPress }: Props) {
+console.log("GOALCARD GOAL:", goal);
 
   /* --------------------------------------------------------
      PASSO 7 — LOG DE TESTE (dados reais do hook)
