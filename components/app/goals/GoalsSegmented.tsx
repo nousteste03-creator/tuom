@@ -16,17 +16,29 @@ const brandFont = Platform.select({
   default: "System",
 });
 
-const TABS = ["Metas", "Dívidas", "Investimentos", "Receitas"];
+// AGORA CADA ABA TEM LABEL + VALUE CORRETO
+const TABS = [
+  { label: "Metas", value: "goals" },
+  { label: "Dívidas", value: "debts" },
+  { label: "Investimentos", value: "investments" },
+  { label: "Receitas", value: "income" },
+];
 
 type GoalsSegmentedProps = {
+  value?: string;
   onChange?: (tab: string) => void;
 };
 
-export default function GoalsSegmented({ onChange }: GoalsSegmentedProps) {
-  const [selectedIndex, setSelectedIndex] = useState(0);
+export default function GoalsSegmented({ value, onChange }: GoalsSegmentedProps) {
+  const initialIndex = Math.max(
+    0,
+    TABS.findIndex((t) => t.value === value)
+  );
+
+  const [selectedIndex, setSelectedIndex] = useState(initialIndex);
   const [containerWidth, setContainerWidth] = useState(0);
 
-  const anim = useRef(new Animated.Value(0)).current;
+  const anim = useRef(new Animated.Value(initialIndex)).current;
 
   useEffect(() => {
     Animated.spring(anim, {
@@ -35,21 +47,21 @@ export default function GoalsSegmented({ onChange }: GoalsSegmentedProps) {
       speed: 18,
       bounciness: 8,
     }).start();
-  }, [selectedIndex, anim]);
+  }, [selectedIndex]);
 
   const handlePress = (index: number) => {
     setSelectedIndex(index);
-    onChange?.(TABS[index]);
+    onChange?.(TABS[index].value); // ← AQUI ESTÁ A CORREÇÃO
   };
 
-  const indicatorBaseWidth =
+  const indicatorWidth =
     containerWidth > 0 ? containerWidth / TABS.length : 0;
 
   const translateX =
     containerWidth > 0
       ? anim.interpolate({
           inputRange: TABS.map((_, i) => i),
-          outputRange: TABS.map((_, i) => i * indicatorBaseWidth),
+          outputRange: TABS.map((_, i) => i * indicatorWidth),
         })
       : 0;
 
@@ -64,7 +76,7 @@ export default function GoalsSegmented({ onChange }: GoalsSegmentedProps) {
             style={[
               styles.indicator,
               {
-                width: indicatorBaseWidth,
+                width: indicatorWidth,
                 transform: [{ translateX }],
               },
             ]}
@@ -75,20 +87,12 @@ export default function GoalsSegmented({ onChange }: GoalsSegmentedProps) {
           const isActive = index === selectedIndex;
           return (
             <TouchableOpacity
-              key={tab}
+              key={tab.value}
               style={styles.tabButton}
-              activeOpacity={0.85}
               onPress={() => handlePress(index)}
             >
-              <Text
-                numberOfLines={1}
-                ellipsizeMode="clip"
-                style={[
-                  styles.tabText,
-                  isActive && styles.tabTextActive,
-                ]}
-              >
-                {tab}
+              <Text style={[styles.tabText, isActive && styles.tabTextActive]}>
+                {tab.label}
               </Text>
             </TouchableOpacity>
           );
@@ -119,14 +123,12 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 6,
     alignItems: "center",
-    justifyContent: "center",
   },
   tabText: {
     fontSize: 13,
     fontFamily: brandFont,
     color: "#FFFFFF",
     opacity: 0.6,
-    letterSpacing: 0.2,
   },
   tabTextActive: {
     opacity: 1,

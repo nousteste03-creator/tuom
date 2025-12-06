@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -18,16 +18,55 @@ const brandFont = Platform.select({
 
 type Props = {
   visible: boolean;
+  blockedType?: "goal" | "debt" | "investment" | "income";
   onClose: () => void;
   onUpgrade: () => void;
 };
 
-export default function ModalPremiumPaywall({ visible, onClose, onUpgrade }: Props) {
-  // ANIMAÇÃO APPLE MUSIC
+export default function ModalPremiumPaywall({
+  visible,
+  blockedType = "goal",
+  onClose,
+  onUpgrade,
+}: Props) {
+  // ==== HOOKS DEVEM FICAR NO TOPO SEMPRE ====
+
   const opacity = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(0.92)).current;
   const translate = useRef(new Animated.Value(12)).current;
 
+  // Texto dinâmico — sempre executado (mesmo invisível)
+  const title = useMemo(() => {
+    switch (blockedType) {
+      case "goal":
+        return "Limite de metas atingido";
+      case "debt":
+        return "Limite de dívidas atingido";
+      case "investment":
+        return "Limite de investimentos atingido";
+      case "income":
+        return "Limite de receitas atingido";
+      default:
+        return "Desbloqueie todo o potencial";
+    }
+  }, [blockedType]);
+
+  const subtitle = useMemo(() => {
+    switch (blockedType) {
+      case "goal":
+        return "Usuários FREE podem criar somente 1 meta.";
+      case "debt":
+        return "Usuários FREE podem criar somente 1 dívida.";
+      case "investment":
+        return "Usuários FREE podem criar somente 1 investimento.";
+      case "income":
+        return "Receitas são ilimitadas — talvez o erro foi outro.";
+      default:
+        return "Assine o NÖUS PRO para desbloquear funcionalidades avançadas.";
+    }
+  }, [blockedType]);
+
+  // ANIMAÇÃO
   useEffect(() => {
     if (visible) {
       Animated.parallel([
@@ -51,38 +90,29 @@ export default function ModalPremiumPaywall({ visible, onClose, onUpgrade }: Pro
         }),
       ]).start();
     } else {
-      // Reset instantâneo para reabrir suave
       opacity.setValue(0);
       scale.setValue(0.92);
       translate.setValue(12);
     }
   }, [visible]);
 
+  // EARLY RETURN — permitido porque todos hooks já rodaram
   if (!visible) return null;
 
   return (
-    <Animated.View
-      style={[styles.overlay, { opacity }]}
-    >
+    <Animated.View style={[styles.overlay, { opacity }]}>
       <BlurView tint="dark" intensity={65} style={styles.blurBackground} />
 
       <Animated.View
         style={[
           styles.card,
           {
-            transform: [
-              { scale },
-              { translateY: translate },
-            ],
+            transform: [{ scale }, { translateY: translate }],
           },
         ]}
       >
-        <Text style={styles.title}>Desbloqueie todo o potencial</Text>
-
-        <Text style={styles.subtitle}>
-          Assine o NÖUS PRO e tenha acesso ilimitado a metas, dívidas,
-          investimentos e receitas.
-        </Text>
+        <Text style={styles.title}>{title}</Text>
+        <Text style={styles.subtitle}>{subtitle}</Text>
 
         <View style={styles.features}>
           <Feature icon="infinite" text="Metas ilimitadas" />

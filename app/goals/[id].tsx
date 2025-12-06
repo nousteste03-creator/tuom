@@ -1,15 +1,19 @@
 // app/goals/[id].tsx
-import React, { useMemo } from "react";
+import React from "react";
 import {
   View,
   Text,
   ScrollView,
   ActivityIndicator,
-  StyleSheet,
   TouchableOpacity,
   Platform,
+  StyleSheet,
 } from "react-native";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import {
+  useLocalSearchParams,
+  useRouter,
+  useFocusEffect,
+} from "expo-router";
 
 import Screen from "@/components/layout/Screen";
 import Icon from "@/components/ui/Icon";
@@ -17,11 +21,11 @@ import Icon from "@/components/ui/Icon";
 import GoalMainCard from "@/components/app/goals/GoalMainCard";
 import GoalDebtCard from "@/components/app/goals/GoalDebtCard";
 import GoalInvestmentCard from "@/components/app/goals/GoalInvestmentCard";
+import GoalInstallmentsTimeline from "@/components/app/goals/GoalInstallmentsTimeline";
 import GoalsInsightsCard from "@/components/app/goals/GoalsInsightsCard";
 
 import { useGoals } from "@/hooks/useGoals";
 import { useGoalsInsights } from "@/hooks/useGoalsInsights";
-import { useUserPlan } from "@/hooks/useUserPlan";
 
 const brandFont = Platform.select({
   ios: "SF Pro Display",
@@ -32,118 +36,118 @@ const brandFont = Platform.select({
 export default function GoalDetailScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ id?: string }>();
-  const goalId = params.id;
+  const rawId = params?.id ?? null;
 
-  const { goals, debts, investments, loading } = useGoals();
-  const { insights, loading: loadingInsights } = useGoalsInsights();
-  const { isPro } = useUserPlan();
+  /** ------------------------------------------------------------
+   * (1) BLOQUEAR goalId === "create"
+   * ------------------------------------------------------------ */
+  const goalId = rawId === "create" ? null : rawId;
 
-  const allItems = useMemo(
-    () => [...(goals ?? []), ...(debts ?? []), ...(investments ?? [])],
-    [goals, debts, investments]
+  const { loading, goals, debts, investments, reload } = useGoals();
+  const { insights } = useGoalsInsights();
+
+  /** ------------------------------------------------------------
+   * (2) FOCUS EFFECT — sem spam
+   * ------------------------------------------------------------ */
+  useFocusEffect(
+    React.useCallback(() => {
+      reload(); // sem logs extras
+    }, [reload])
   );
 
-  const goal = allItems.find((g) => g.id === goalId);
-
-  if (loading && !goal) {
+  /** ------------------------------------------------------------
+   * Encontrar meta
+   * ------------------------------------------------------------ */
+  const goal = React.useMemo(() => {
+    if (!goalId) return null;
     return (
-      <Screen>
-        <View style={styles.center}>
-          <ActivityIndicator />
-        </View>
+      goals.find((g) => g.id === goalId) ||
+      debts.find((g) => g.id === goalId) ||
+      investments.find((g) => g.id === goalId) ||
+      null
+    );
+  }, [goalId, goals, debts, investments]);
+
+  /** ------------------------------------------------------------
+   * (5) Parcial — usamos installments corretas
+   * ------------------------------------------------------------ */
+  const installmentsAll = goal?.installments ?? [];
+  const hasInstallments = installmentsAll.length > 0;
+
+  /** ------------------------------------------------------------
+   * Loading
+   * ------------------------------------------------------------ */
+  if (loading) {
+    return (
+      <Screen style={styles.center}>
+        <ActivityIndicator size="large" color="#fff" />
       </Screen>
     );
   }
 
+  /** ------------------------------------------------------------
+   * (1) Meta inválida ou goalId="create"
+   * ------------------------------------------------------------ */
   if (!goal) {
     return (
-      <Screen>
-        <View style={styles.center}>
-          <Text style={styles.error}>Meta não encontrada.</Text>
-          <TouchableOpacity onPress={() => router.back()}>
-            <Text style={styles.link}>Voltar</Text>
-          </TouchableOpacity>
-        </View>
+      <Screen style={styles.center}>
+        <Text style={styles.notFound}>Meta não encontrada.</Text>
+
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <Text style={styles.backText}>Voltar</Text>
+        </TouchableOpacity>
       </Screen>
     );
   }
 
-  const goalInsights = insights.filter((ins) =>
-    ins.id.endsWith(goalId || "")
-  );
-
+  /** ------------------------------------------------------------
+   * Render principal
+   * ------------------------------------------------------------ */
   return (
     <Screen>
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={styles.headerBtn}
-        >
-          <Icon name="chevron-left" size={18} />
-        </TouchableOpacity>
-
-        <Text style={styles.headerTitle} numberOfLines={1}>
-          {goal.title}
-        </Text>
-
-        <View style={{ width: 32 }} />
-      </View>
-
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
+        contentContainerStyle={{ paddingBottom: 100 }}
       >
-        <View style={{ marginBottom: 20 }}>
-          {goal.type === "goal" && (
-            <GoalMainCard
-              goal={goal}
-              progress={goal.progressPercent / 100}
-              remainingAmount={goal.remainingAmount}
-              isPro={isPro}
-              onPressDetails={() => {}}
-              onPressEdit={() =>
-                router.push(`/goals/edit/page?id=${goal.id}`)
-              }
-            />
-          )}
+        {/* HEADER */}
+        <View style={styles.headerRow}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.iconBtn}
+          >
+            {/* (4) Corrigir ícone inválido */}
+            <Icon name="chevron-back" size={22} color="#fff" />
+          </TouchableOpacity>
 
-          {goal.type === "debt" && (
-            <GoalDebtCard
-              goal={goal}
-              onPressEdit={() =>
-                router.push(`/goals/edit/page?id=${goal.id}`)
-              }
-            />
-          )}
+          <Text style={styles.title}>{goal.title}</Text>
 
-          {goal.type === "investment" && (
-            <GoalInvestmentCard
-              goal={goal}
-              onPressEdit={() =>
-                router.push(`/goals/edit/page?id=${goal.id}`)
-              }
-            />
-          )}
+          <View style={{ width: 32 }} />
         </View>
 
-        <View style={{ marginBottom: 20 }}>
-          <Text style={styles.blockTitle}>Insights desta meta</Text>
+        {/* MAIN CARD */}
+        <GoalMainCard goal={goal} />
 
-          {loadingInsights && (
-            <ActivityIndicator style={{ marginTop: 12 }} />
-          )}
+        {/* CARDS ESPECÍFICOS */}
+        {goal.type === "debt" && <GoalDebtCard debt={goal} />}
+        {goal.type === "investment" && (
+          <GoalInvestmentCard investment={goal} />
+        )}
 
-          {!loadingInsights &&
-            goalInsights.map((ins) => (
-              <View key={ins.id} style={{ marginBottom: 12 }}>
-                <GoalsInsightsCard insight={ins} isPro={isPro} />
-              </View>
-            ))}
+        {/* TIMELINE */}
+        {hasInstallments && (
+          <GoalInstallmentsTimeline installments={installmentsAll} />
+        )}
 
-          {!loadingInsights && goalInsights.length === 0 && (
-            <Text style={styles.emptyText}>
-              Nenhum insight disponível.
-            </Text>
+        {/* INSIGHTS */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Insights</Text>
+
+          {!insights || insights.length === 0 ? (
+            <Text style={styles.noInsights}>Nenhum insight disponível.</Text>
+          ) : (
+            insights.map((insight, idx) => (
+              <GoalsInsightsCard key={idx} item={insight} />
+            ))
           )}
         </View>
       </ScrollView>
@@ -151,53 +155,76 @@ export default function GoalDetailScreen() {
   );
 }
 
+/* ------------------------------------------------------------
+   Estilos — Premium Apple/Glass
+------------------------------------------------------------ */
 const styles = StyleSheet.create({
-  center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  header: {
-    flexDirection: "row",
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 4,
+  center: {
+    flex: 1,
+    justifyContent: "center",
     alignItems: "center",
   },
-  headerBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "rgba(255,255,255,0.05)",
+
+  headerRow: {
+    paddingTop: 10,
+    paddingBottom: 20,
+    paddingHorizontal: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+
+  iconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
   },
-  headerTitle: {
-    flex: 1,
-    textAlign: "center",
+
+  title: {
     fontFamily: brandFont,
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#FFFFFF",
-  },
-  blockTitle: {
-    fontFamily: brandFont,
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#FFFFFF",
-    marginBottom: 8,
-  },
-  emptyText: {
-    fontFamily: brandFont,
-    fontSize: 13,
-    color: "rgba(255,255,255,0.7)",
-  },
-  error: {
+    fontSize: 20,
     color: "#fff",
-    fontSize: 15,
-    marginBottom: 6,
-    fontFamily: brandFont,
+    fontWeight: "600",
   },
-  link: {
-    color: "#87b4c7ff",
-    fontSize: 13,
-    fontWeight: "500",
+
+  section: {
+    marginTop: 30,
+    paddingHorizontal: 18,
+  },
+
+  sectionTitle: {
+    fontFamily: brandFont,
+    fontSize: 17,
+    fontWeight: "600",
+    color: "#fff",
+    marginBottom: 12,
+  },
+
+  noInsights: {
+    fontFamily: brandFont,
+    color: "rgba(255,255,255,0.45)",
+    fontSize: 15,
+  },
+
+  notFound: {
+    fontFamily: brandFont,
+    fontSize: 18,
+    color: "#fff",
+    marginBottom: 14,
+  },
+
+  backBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 22,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.10)",
+  },
+
+  backText: {
+    color: "#fff",
+    fontSize: 16,
     fontFamily: brandFont,
   },
 });

@@ -1,3 +1,4 @@
+// components/app/goals/GoalsDebtList.tsx
 import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { BlurView } from "expo-blur";
@@ -9,7 +10,7 @@ type DebtItem = {
   title: string;
   targetAmount: number;
   currentAmount: number;
-  progressPercent: number; // 0–100
+  progressPercent: number;
 };
 
 type GoalsDebtListProps = {
@@ -18,7 +19,6 @@ type GoalsDebtListProps = {
 };
 
 export default function GoalsDebtList({ debts, onPress }: GoalsDebtListProps) {
-
   if (!debts || debts.length === 0) {
     return (
       <View style={{ paddingHorizontal: 16, marginTop: 10 }}>
@@ -33,34 +33,36 @@ export default function GoalsDebtList({ debts, onPress }: GoalsDebtListProps) {
   }
 
   return (
-    <View style={{ paddingHorizontal: 16 }}>
-      {debts.map((d) => (
-        <TouchableOpacity
-          key={d.id}
-          activeOpacity={0.8}
-          onPress={() => onPress?.(d.id)}
-          style={{ marginBottom: 14 }}
-        >
-          <BlurView intensity={28} tint="dark" style={styles.card}>
-            <Text style={styles.title}>{d.title}</Text>
+    <View style={{ paddingHorizontal: 16, marginTop: 12 }}>
+      {debts.map((d) => {
+        const progress = Math.min(100, Math.max(0, d.progressPercent || 0));
 
-            <Text style={styles.amount}>
-              R$ {d.currentAmount.toFixed(2)}{" "}
-              <Text style={styles.subAmount}>/ R$ {d.targetAmount.toFixed(2)}</Text>
-            </Text>
+        return (
+          <TouchableOpacity
+            key={d.id}
+            activeOpacity={0.8}
+            onPress={() => onPress?.(d.id)}
+            style={{ marginBottom: 14 }}
+          >
+            <BlurView intensity={28} tint="dark" style={styles.card}>
+              <Text style={styles.title}>{d.title}</Text>
 
-            {/* Barra de progresso fina */}
-            <View style={styles.progressTrack}>
-              <View
-                style={[
-                  styles.progressFill,
-                  { width: `${d.progressPercent}%` },
-                ]}
-              />
-            </View>
-          </BlurView>
-        </TouchableOpacity>
-      ))}
+              <Text style={styles.amount}>
+                R$ {Number(d.currentAmount || 0).toFixed(2)}{" "}
+                <Text style={styles.subAmount}>
+                  / R$ {Number(d.targetAmount || 0).toFixed(2)}
+                </Text>
+              </Text>
+
+              <View style={styles.progressTrack}>
+                <View
+                  style={[styles.progressFill, { width: `${progress}%` }]}
+                />
+              </View>
+            </BlurView>
+          </TouchableOpacity>
+        );
+      })}
     </View>
   );
 }
@@ -107,7 +109,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#E74C3C",
   },
 
-  /* Empty */
   emptyCard: {
     padding: 22,
     borderRadius: 20,

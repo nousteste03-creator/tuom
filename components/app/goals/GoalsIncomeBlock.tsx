@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
   View,
   Text,
@@ -19,7 +19,14 @@ const brandFont = Platform.select({
   default: "System",
 });
 
-export default function GoalsIncomeBlock() {
+/**
+ * Importante:
+ * Este componente agora está memoizado para evitar
+ * re-render em cascata que estava derrubando o estado
+ * de Goals quando trocava de aba.
+ */
+
+function GoalsIncomeBlock() {
   const router = useRouter();
   const { isPro } = useUserPlan();
 
@@ -29,12 +36,16 @@ export default function GoalsIncomeBlock() {
     nextIncomeEvent,
   } = useIncomeSources();
 
-  const currency = (v: number) =>
-    new Intl.NumberFormat("pt-BR", {
-      style: "currency",
-      currency: "BRL",
-      minimumFractionDigits: 2,
-    }).format(v);
+  const currency = useMemo(
+    () =>
+      (v: number) =>
+        new Intl.NumberFormat("pt-BR", {
+          style: "currency",
+          currency: "BRL",
+          minimumFractionDigits: 2,
+        }).format(v),
+    []
+  );
 
   return (
     <BlurView intensity={30} tint="dark" style={styles.card}>
@@ -44,7 +55,7 @@ export default function GoalsIncomeBlock() {
       {/* TOTAL MENSAL */}
       <View style={styles.monthlyRow}>
         <Text style={styles.label}>Projeção mensal</Text>
-        <Text style={styles.value}>{currency(totalMonthlyIncome)}</Text>
+        <Text style={styles.value}>{currency(totalMonthlyIncome || 0)}</Text>
       </View>
 
       {/* PRÓXIMO RECEBIMENTO */}
@@ -53,8 +64,8 @@ export default function GoalsIncomeBlock() {
 
         {nextIncomeEvent ? (
           <Text style={styles.nextValue}>
-            {nextIncomeEvent.name} • {currency(nextIncomeEvent.amount)}  
-            {"  "}|{"  "}
+            {nextIncomeEvent.name} • {currency(nextIncomeEvent.amount)}
+            {"  "} | {"  "}
             {new Date(nextIncomeEvent.date).toLocaleDateString("pt-BR")}
           </Text>
         ) : (
@@ -75,9 +86,7 @@ export default function GoalsIncomeBlock() {
           ))}
 
           {incomeSources.length === 0 && (
-            <Text style={styles.nextMuted}>
-              Nenhuma receita cadastrada.
-            </Text>
+            <Text style={styles.nextMuted}>Nenhuma receita cadastrada.</Text>
           )}
         </View>
       ) : (
@@ -105,6 +114,8 @@ export default function GoalsIncomeBlock() {
     </BlurView>
   );
 }
+
+export default React.memo(GoalsIncomeBlock);
 
 /* ============================================================
    STYLES — Premium Apple Glass

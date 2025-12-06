@@ -9,7 +9,6 @@ import {
 } from "react-native";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
-
 import type { Goal } from "@/hooks/useGoals";
 
 const brandFont = Platform.select({
@@ -18,10 +17,9 @@ const brandFont = Platform.select({
   default: "System",
 });
 
-/* -----------------------------------------------------------
+/* ============================================================
    Helpers
-------------------------------------------------------------*/
-
+============================================================ */
 function formatCurrency(value: number) {
   if (!value || isNaN(value)) return "R$ 0,00";
 
@@ -36,44 +34,42 @@ function formatCurrency(value: number) {
   }
 }
 
-/* -----------------------------------------------------------
-   Tipagem reduzida para Fase 2
-------------------------------------------------------------*/
-
+/* ============================================================
+   Props
+============================================================ */
 export type GoalMainCardProps = {
   goal: Goal | null;
 
-  progress?: number;         
+  progress?: number;
   remainingAmount?: number;
   nextInstallment?: number;
 
   isPro?: boolean;
 
-  onPressDetails?: () => void;     // ADICIONADO
-  onPressEdit?: () => void;        // ADICIONADO
+  onPressDetails?: () => void;
+  onPressEdit?: () => void;
   onPressAddInstallment?: () => void;
 };
 
-/* -----------------------------------------------------------
-   Componente principal — Fase 2 compatível
-------------------------------------------------------------*/
-
+/* ============================================================
+   COMPONENTE FINAL
+============================================================ */
 export default function GoalMainCard({
   goal,
   progress = 0,
   remainingAmount = 0,
   nextInstallment,
   isPro = false,
-  onPressDetails,               // ADICIONADO
-  onPressEdit,                  // ADICIONADO
+  onPressDetails,
+  onPressEdit,
   onPressAddInstallment,
 }: GoalMainCardProps) {
   const [barWidth, setBarWidth] = useState(0);
-  console.log("MAIN CARD GOAL:", goal);
 
   const entryAnim = useRef(new Animated.Value(0)).current;
   const progressAnim = useRef(new Animated.Value(0)).current;
 
+  /* Animação de entrada */
   useEffect(() => {
     Animated.timing(entryAnim, {
       toValue: 1,
@@ -82,6 +78,7 @@ export default function GoalMainCard({
     }).start();
   }, []);
 
+  /* Animação da barra */
   useEffect(() => {
     Animated.timing(progressAnim, {
       toValue: progress,
@@ -98,7 +95,7 @@ export default function GoalMainCard({
         })
       : 0;
 
-  /* ESTADOS */
+  /* Estado vazio */
   if (!goal) {
     return (
       <BlurView intensity={30} tint="dark" style={[styles.card, styles.center]}>
@@ -113,6 +110,9 @@ export default function GoalMainCard({
   const isDebt = goal.type === "debt";
   const isInvestment = goal.type === "investment";
 
+  /* ============================================================
+     UI
+  ============================================================ */
   return (
     <Animated.View
       style={{
@@ -140,6 +140,7 @@ export default function GoalMainCard({
             <Text style={styles.title} numberOfLines={1}>
               {goal.title}
             </Text>
+
             <Text style={styles.subtitle}>
               {isDebt
                 ? "Dívida"
@@ -155,14 +156,14 @@ export default function GoalMainCard({
           <View style={{ flex: 1 }}>
             <Text style={styles.valueLabel}>Acumulado</Text>
             <Text style={styles.valueAmount}>
-              {formatCurrency(goal.current_amount)}
+              {formatCurrency(goal.currentAmount)}
             </Text>
           </View>
 
           <View style={{ alignItems: "flex-end" }}>
             <Text style={styles.valueLabel}>Meta</Text>
             <Text style={styles.valueAmountMuted}>
-              {formatCurrency(goal.target_amount)}
+              {formatCurrency(goal.targetAmount)}
             </Text>
           </View>
         </View>
@@ -194,7 +195,7 @@ export default function GoalMainCard({
           )}
         </View>
 
-        {/* TEXTO DA PORCENTAGEM */}
+        {/* PORCENTAGEM */}
         <View style={styles.progressMetaRow}>
           <Text style={styles.progressPercent}>
             {Math.round(progress * 100)}%
@@ -203,7 +204,7 @@ export default function GoalMainCard({
           <Text style={styles.progressInfo}>Sem prazo definido</Text>
         </View>
 
-        {/* BLOCOS */}
+        {/* BLOCO: DÍVIDA */}
         {isDebt && (
           <View style={styles.typeBlock}>
             <Text style={styles.typeLabel}>Próxima parcela</Text>
@@ -243,17 +244,11 @@ export default function GoalMainCard({
 
         {/* BOTÕES */}
         <View style={styles.actionsRow}>
-          <TouchableOpacity
-            style={styles.primaryButton}
-            onPress={onPressDetails}       // AJUSTADO
-          >
+          <TouchableOpacity style={styles.primaryButton} onPress={onPressDetails}>
             <Text style={styles.primaryButtonText}>Ver detalhes</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.secondaryButton}
-            onPress={onPressEdit}          // AJUSTADO
-          >
+          <TouchableOpacity style={styles.secondaryButton} onPress={onPressEdit}>
             <Text style={styles.secondaryButtonText}>Editar</Text>
           </TouchableOpacity>
 
@@ -271,10 +266,9 @@ export default function GoalMainCard({
   );
 }
 
-/* -----------------------------------------------------------
+/* ============================================================
    STYLES
-------------------------------------------------------------*/
-
+============================================================ */
 const styles = StyleSheet.create({
   card: {
     marginHorizontal: 16,

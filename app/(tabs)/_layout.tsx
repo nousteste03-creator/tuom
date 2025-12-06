@@ -1,7 +1,6 @@
-// app/(tabs)/_layout.tsx
 import { Tabs } from "expo-router";
-import { colors } from "@/lib/colors";
 import Icon from "@/components/ui/Icon";
+import { colors } from "@/lib/colors";
 
 export default function TabsLayout() {
   return (
@@ -41,15 +40,15 @@ export default function TabsLayout() {
       />
 
       {/* METAS */}
-<Tabs.Screen
-  name="metas"
-  options={{
-    title: "Metas",
-    tabBarIcon: ({ color }) => (
-      <Icon name="flag-outline" color={color} size={22} />
-    ),
-  }}
-/>
+      <Tabs.Screen
+        name="goals"
+        options={{
+          title: "Metas",
+          tabBarIcon: ({ color }) => (
+            <Icon name="flag-outline" color={color} size={22} />
+          ),
+        }}
+      />
 
       {/* INSIGHTS */}
       <Tabs.Screen
@@ -62,7 +61,7 @@ export default function TabsLayout() {
         }}
       />
 
-      {/* FINANÇAS — rota correta (finance) */}
+      {/* FINANÇAS */}
       <Tabs.Screen
         name="finance"
         options={{
