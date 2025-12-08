@@ -18,31 +18,29 @@ const brandFont = Platform.select({
 });
 
 type Props = {
-  goal?: GoalWithStats; // agora opcional para evitar crash
+  goal?: GoalWithStats;
   onPress?: () => void;
 };
 
 export default function GoalDebtCard({ goal, onPress }: Props) {
-  // fallback se goal vier undefined
-  if (!goal) {
-    return (
-      <BlurView intensity={20} tint="dark" style={styles.card}>
-        <Text style={styles.fallback}>Meta inválida</Text>
-      </BlurView>
-    );
-  }
-console.log("DEBT CARD GOAL:", goal);
+  /** ------------------------------------------------------------
+   * FAIL-SAFE FINAL
+   * Nunca exibir skeleton, nunca exibir mensagem errada.
+   * Se goal ainda não carregou → simplesmente não renderiza.
+   --------------------------------------------------------------*/
+  if (!goal) return null;
 
-  // segurança máxima
   const installments = goal.installments ?? [];
 
-  const paidInstallments = useMemo(
-    () => installments.filter((i) => i.status === "paid").length,
-    [installments]
-  );
-
+  /** ------------------------------------------------------------
+   * Parcelas pagas / totais
+   --------------------------------------------------------------*/
+  const paidInstallments = installments.filter((i) => i.status === "paid").length;
   const totalInstallments = installments.length;
 
+  /** ------------------------------------------------------------
+   * Próxima parcela (manual ou automática)
+   --------------------------------------------------------------*/
   const nextInstallment = useMemo(() => {
     const upcoming = installments.filter((i) => i.status !== "paid");
     if (upcoming.length === 0) return null;
@@ -54,6 +52,9 @@ console.log("DEBT CARD GOAL:", goal);
     );
   }, [installments]);
 
+  /** ------------------------------------------------------------
+   * Restante — sempre correto
+   --------------------------------------------------------------*/
   const remaining = goal.remainingAmount ?? 0;
 
   return (
@@ -63,7 +64,7 @@ console.log("DEBT CARD GOAL:", goal);
         <View style={styles.headerRow}>
           <View style={styles.iconBadge}>
             <Text style={styles.iconText}>
-              {(goal.title ?? "Meta").charAt(0).toUpperCase()}
+              {(goal.title ?? "M").charAt(0).toUpperCase()}
             </Text>
           </View>
 
@@ -81,6 +82,7 @@ console.log("DEBT CARD GOAL:", goal);
         {/* RESTANTE */}
         <View style={styles.infoRow}>
           <Text style={styles.label}>Restante</Text>
+
           <Text style={styles.amount}>
             {Intl.NumberFormat("pt-BR", {
               style: "currency",
@@ -101,7 +103,7 @@ console.log("DEBT CARD GOAL:", goal);
           </Text>
         )}
 
-        {/* BARRA */}
+        {/* PROGRESSO */}
         <View style={{ marginTop: 10 }}>
           <GoalProgressBar progress={goal.progressPercent ?? 0} height={8} />
         </View>
@@ -119,12 +121,6 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.04)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.06)",
-  },
-
-  fallback: {
-    color: "#FFFFFF",
-    fontFamily: brandFont,
-    fontSize: 14,
   },
 
   headerRow: {

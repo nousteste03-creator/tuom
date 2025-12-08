@@ -14,7 +14,7 @@ import Icon from "@/components/ui/Icon";
 import { useFinance } from "@/hooks/useFinance";
 import { useBudget } from "@/hooks/useBudget";
 import { useGoals } from "@/hooks/useGoals";
-import { useUserPlan } from "@/hooks/useUserPlan";
+import { useUserPlan } from "@/context/UserPlanContext";
 
 import ToolsBlock from "@/components/app/finance/ToolsBlock";
 

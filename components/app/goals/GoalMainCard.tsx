@@ -35,7 +35,7 @@ function formatCurrency(value: number) {
 }
 
 /* ============================================================
-   Props
+   Tipagem
 ============================================================ */
 export type GoalMainCardProps = {
   goal: Goal | null;
@@ -46,13 +46,13 @@ export type GoalMainCardProps = {
 
   isPro?: boolean;
 
-  onPressDetails?: () => void;
-  onPressEdit?: () => void;
-  onPressAddInstallment?: () => void;
+  onPressDetails?: () => void;        // registrar aporte / ver detalhes
+  onPressEdit?: () => void;           // editar meta
+  onPressAddInstallment?: () => void; // dívidas
 };
 
 /* ============================================================
-   COMPONENTE FINAL
+   COMPONENTE
 ============================================================ */
 export default function GoalMainCard({
   goal,
@@ -64,12 +64,13 @@ export default function GoalMainCard({
   onPressEdit,
   onPressAddInstallment,
 }: GoalMainCardProps) {
+  
   const [barWidth, setBarWidth] = useState(0);
 
   const entryAnim = useRef(new Animated.Value(0)).current;
   const progressAnim = useRef(new Animated.Value(0)).current;
 
-  /* Animação de entrada */
+  /* Entrada */
   useEffect(() => {
     Animated.timing(entryAnim, {
       toValue: 1,
@@ -78,7 +79,7 @@ export default function GoalMainCard({
     }).start();
   }, []);
 
-  /* Animação da barra */
+  /* Barra */
   useEffect(() => {
     Animated.timing(progressAnim, {
       toValue: progress,
@@ -109,6 +110,12 @@ export default function GoalMainCard({
 
   const isDebt = goal.type === "debt";
   const isInvestment = goal.type === "investment";
+  const isGoal = goal.type === "goal";
+
+  /* Define texto do botão principal */
+  const primaryLabel = isDebt
+    ? "Ver detalhes"
+    : "Registrar aporte";
 
   /* ============================================================
      UI
@@ -128,6 +135,7 @@ export default function GoalMainCard({
       }}
     >
       <BlurView intensity={40} tint="dark" style={styles.card}>
+
         {/* HEADER */}
         <View style={styles.header}>
           <View style={styles.iconBadge}>
@@ -168,7 +176,7 @@ export default function GoalMainCard({
           </View>
         </View>
 
-        {/* BARRA */}
+        {/* PROGRESS BAR */}
         <View
           style={styles.progressWrapper}
           onLayout={(e) => setBarWidth(e.nativeEvent.layout.width)}
@@ -204,7 +212,7 @@ export default function GoalMainCard({
           <Text style={styles.progressInfo}>Sem prazo definido</Text>
         </View>
 
-        {/* BLOCO: DÍVIDA */}
+        {/* BLOCO — DÍVIDA */}
         {isDebt && (
           <View style={styles.typeBlock}>
             <Text style={styles.typeLabel}>Próxima parcela</Text>
@@ -244,14 +252,18 @@ export default function GoalMainCard({
 
         {/* BOTÕES */}
         <View style={styles.actionsRow}>
+
+          {/* PRINCIPAL */}
           <TouchableOpacity style={styles.primaryButton} onPress={onPressDetails}>
-            <Text style={styles.primaryButtonText}>Ver detalhes</Text>
+            <Text style={styles.primaryButtonText}>{primaryLabel}</Text>
           </TouchableOpacity>
 
+          {/* EDITAR */}
           <TouchableOpacity style={styles.secondaryButton} onPress={onPressEdit}>
             <Text style={styles.secondaryButtonText}>Editar</Text>
           </TouchableOpacity>
 
+          {/* DÍVIDA: ADICIONAR PARCELA */}
           {isDebt && (
             <TouchableOpacity
               style={styles.secondaryButton}
@@ -261,6 +273,7 @@ export default function GoalMainCard({
             </TouchableOpacity>
           )}
         </View>
+
       </BlurView>
     </Animated.View>
   );
@@ -290,6 +303,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#FFFFFF",
   },
+
   emptyText: {
     fontFamily: brandFont,
     fontSize: 13,
@@ -457,7 +471,7 @@ const styles = StyleSheet.create({
   },
 
   primaryButton: {
-    flex: 1.2,
+    flex: 1.3,
     paddingVertical: 10,
     borderRadius: 999,
     backgroundColor: "rgba(255,255,255,0.10)",

@@ -19,6 +19,13 @@ const brandFont = Platform.select({
 
 type Props = {
   goal: GoalWithStats;
+
+  // NOVAS PROPS
+  onPressDetail?: () => void;
+  onPressEdit?: () => void;
+  onPressContribution?: () => void;
+
+  // fallback original
   onPress?: () => void;
 };
 
@@ -29,19 +36,17 @@ function formatCurrency(v: number) {
   }).format(v);
 }
 
-export default function GoalCard({ goal, onPress }: Props) {
-console.log("GOALCARD GOAL:", goal);
-
-  /* --------------------------------------------------------
-     PASSO 7 — LOG DE TESTE (dados reais do hook)
-  ---------------------------------------------------------*/
-  console.log("DEBUG GoalCard:", {
-    id: goal.id,
-    title: goal.title,
-    progressPercent: goal.progressPercent,
-    current: goal.currentAmount,
-    target: goal.targetAmount,
-  });
+export default function GoalCard({
+  goal,
+  onPress,
+  onPressDetail,
+  onPressEdit,
+  onPressContribution,
+}: Props) {
+  const handlePress = () => {
+    if (onPressDetail) return onPressDetail();
+    if (onPress) return onPress();
+  };
 
   const isDebt = goal.type === "debt";
   const isInvestment = goal.type === "investment";
@@ -64,10 +69,9 @@ console.log("GOALCARD GOAL:", goal);
   }, [goal]);
 
   return (
-    <TouchableOpacity activeOpacity={0.85} onPress={onPress}>
+    <TouchableOpacity activeOpacity={0.85} onPress={handlePress}>
       <BlurView intensity={22} tint="dark" style={styles.card}>
         <View style={styles.row}>
-
           {/* Ícone minimalista */}
           <View style={styles.icon}>
             <Text style={styles.iconText}>

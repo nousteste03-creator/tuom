@@ -18,12 +18,15 @@ import {
 import Screen from "@/components/layout/Screen";
 import Icon from "@/components/ui/Icon";
 
+// COMPONENTES METAS
 import GoalMainCard from "@/components/app/goals/GoalMainCard";
+import GoalDebtMainCard from "@/components/app/goals/GoalDebtMainCard";
 import GoalDebtCard from "@/components/app/goals/GoalDebtCard";
 import GoalInvestmentCard from "@/components/app/goals/GoalInvestmentCard";
 import GoalInstallmentsTimeline from "@/components/app/goals/GoalInstallmentsTimeline";
 import GoalsInsightsCard from "@/components/app/goals/GoalsInsightsCard";
 
+// HOOKS
 import { useGoals } from "@/hooks/useGoals";
 import { useGoalsInsights } from "@/hooks/useGoalsInsights";
 
@@ -38,46 +41,46 @@ export default function GoalDetailScreen() {
   const params = useLocalSearchParams<{ id?: string }>();
   const rawId = params?.id ?? null;
 
-  /** ------------------------------------------------------------
-   * (1) BLOQUEAR goalId === "create"
-   * ------------------------------------------------------------ */
+  // bloquear caso id === "create"
   const goalId = rawId === "create" ? null : rawId;
 
   const { loading, goals, debts, investments, reload } = useGoals();
   const { insights } = useGoalsInsights();
 
-  /** ------------------------------------------------------------
-   * (2) FOCUS EFFECT — sem spam
-   * ------------------------------------------------------------ */
+  /* ============================================================
+     FOCUS EFFECT — carregar uma única vez ao entrar
+  ============================================================ */
   useFocusEffect(
     React.useCallback(() => {
-      reload(); // sem logs extras
-    }, [reload])
+      reload();
+    }, [])
   );
 
-  /** ------------------------------------------------------------
-   * Encontrar meta
-   * ------------------------------------------------------------ */
+  /* ============================================================
+     BUSCAR ITEM
+  ============================================================ */
   const goal = React.useMemo(() => {
     if (!goalId) return null;
+
     return (
       goals.find((g) => g.id === goalId) ||
-      debts.find((g) => g.id === goalId) ||
-      investments.find((g) => g.id === goalId) ||
+      debts.find((d) => d.id === goalId) ||
+      investments.find((i) => i.id === goalId) ||
       null
     );
   }, [goalId, goals, debts, investments]);
 
-  /** ------------------------------------------------------------
-   * (5) Parcial — usamos installments corretas
-   * ------------------------------------------------------------ */
+  const isDebt = goal?.type === "debt";
+  const isInvestment = goal?.type === "investment";
+  const isGoal = goal?.type === "goal";
+
   const installmentsAll = goal?.installments ?? [];
   const hasInstallments = installmentsAll.length > 0;
 
-  /** ------------------------------------------------------------
-   * Loading
-   * ------------------------------------------------------------ */
-  if (loading) {
+  /* ============================================================
+     LOADING / NOT FOUND
+  ============================================================ */
+  if (loading && !goal) {
     return (
       <Screen style={styles.center}>
         <ActivityIndicator size="large" color="#fff" />
@@ -85,9 +88,6 @@ export default function GoalDetailScreen() {
     );
   }
 
-  /** ------------------------------------------------------------
-   * (1) Meta inválida ou goalId="create"
-   * ------------------------------------------------------------ */
   if (!goal) {
     return (
       <Screen style={styles.center}>
@@ -100,22 +100,18 @@ export default function GoalDetailScreen() {
     );
   }
 
-  /** ------------------------------------------------------------
-   * Render principal
-   * ------------------------------------------------------------ */
+  /* ============================================================
+     RENDER
+  ============================================================ */
   return (
     <Screen>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 100 }}
+        contentContainerStyle={{ paddingBottom: 120 }}
       >
         {/* HEADER */}
         <View style={styles.headerRow}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            style={styles.iconBtn}
-          >
-            {/* (4) Corrigir ícone inválido */}
+          <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
             <Icon name="chevron-back" size={22} color="#fff" />
           </TouchableOpacity>
 
@@ -124,16 +120,40 @@ export default function GoalDetailScreen() {
           <View style={{ width: 32 }} />
         </View>
 
-        {/* MAIN CARD */}
-        <GoalMainCard goal={goal} />
-
-        {/* CARDS ESPECÍFICOS */}
-        {goal.type === "debt" && <GoalDebtCard debt={goal} />}
-        {goal.type === "investment" && (
-          <GoalInvestmentCard investment={goal} />
+        {/* ======================================================
+           CARD PRINCIPAL
+        ====================================================== */}
+        {isDebt ? (
+          <GoalDebtMainCard
+            debt={goal}
+            showSettleButton
+            onPressPay={() =>
+              router.push(`/goals/details/debt-pay?id=${goal.id}`)
+            }
+            onPressEdit={() =>
+              router.push(`/goals/details/debt-edit?id=${goal.id}`)
+            }
+            onPressSettle={() =>
+              router.push(`/goals/details/debt-settle?id=${goal.id}`)
+            }
+          />
+        ) : (
+          <GoalMainCard
+            goal={goal}
+            onPressDetails={() =>
+              router.push(`/goals/details/add?id=${goal.id}`)
+            }
+            onPressEdit={() =>
+              router.push(`/goals/details/edit?id=${goal.id}`)
+            }
+          />
         )}
 
-        {/* TIMELINE */}
+        {/* CARTÕES EXTRAS */}
+        {isDebt && <GoalDebtCard goal={goal} />}
+        {isInvestment && <GoalInvestmentCard goal={goal} />}
+
+        {/* TIMELINE DE PARCELAS (universal) */}
         {hasInstallments && (
           <GoalInstallmentsTimeline installments={installmentsAll} />
         )}
@@ -145,8 +165,8 @@ export default function GoalDetailScreen() {
           {!insights || insights.length === 0 ? (
             <Text style={styles.noInsights}>Nenhum insight disponível.</Text>
           ) : (
-            insights.map((insight, idx) => (
-              <GoalsInsightsCard key={idx} item={insight} />
+            insights.map((item, idx) => (
+              <GoalsInsightsCard key={idx} item={item} />
             ))
           )}
         </View>
@@ -155,9 +175,9 @@ export default function GoalDetailScreen() {
   );
 }
 
-/* ------------------------------------------------------------
-   Estilos — Premium Apple/Glass
------------------------------------------------------------- */
+/* ============================================================
+   STYLES
+============================================================ */
 const styles = StyleSheet.create({
   center: {
     flex: 1,

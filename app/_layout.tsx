@@ -5,6 +5,8 @@ import { useEffect } from "react";
 import * as SystemUI from "expo-system-ui";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
+import { UserPlanProvider } from "@/context/UserPlanContext";
+
 export default function RootLayout() {
   useEffect(() => {
     SystemUI.setBackgroundColorAsync("#0B0B0C");
@@ -12,15 +14,17 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <StatusBar style="light" />
+      <UserPlanProvider>
+        <StatusBar style="light" />
 
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          animation: "fade",
-          contentStyle: { backgroundColor: "#0B0B0C" },
-        }}
-      />
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            animation: "fade",
+            contentStyle: { backgroundColor: "#0B0B0C" },
+          }}
+        />
+      </UserPlanProvider>
     </GestureHandlerRootView>
   );
 }

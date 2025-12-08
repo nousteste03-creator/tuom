@@ -1,4 +1,3 @@
-// app/goals/index.tsx
 import React, { useMemo, useState, useCallback } from "react";
 import {
   View,
@@ -14,6 +13,9 @@ import { useRouter } from "expo-router";
 import GoalsHeader from "@/components/app/goals/GoalsHeader";
 import GoalsSegmented from "@/components/app/goals/GoalsSegmented";
 import GoalCard from "@/components/app/goals/GoalCard";
+import GoalMainCard from "@/components/app/goals/GoalMainCard";
+import GoalDebtMainCard from "@/components/app/goals/GoalDebtMainCard";
+
 import GoalsDebtList from "@/components/app/goals/GoalsDebtList";
 import GoalsInvestmentList from "@/components/app/goals/GoalsInvestmentList";
 import GoalsIncomeBlock from "@/components/app/goals/GoalsIncomeBlock";
@@ -23,9 +25,8 @@ import GoalsEmptyState from "@/components/app/goals/GoalsEmptyState";
 import ModalPremiumPaywall from "@/components/app/common/ModalPremiumPaywall";
 
 import { useGoals } from "@/hooks/useGoals";
-import { useIncomeSources } from "@/hooks/useIncomeSources";
 import { useGoalsInsights } from "@/hooks/useGoalsInsights";
-import { useUserPlan } from "@/hooks/useUserPlan";
+import { useUserPlan } from "@/context/UserPlanContext";
 
 const brandFont = Platform.select({
   ios: "SF Pro Display",
@@ -36,22 +37,29 @@ const brandFont = Platform.select({
 export default function GoalsIndexScreen() {
   const router = useRouter();
 
-  const { userPlan: plan } = useUserPlan();
-  const { goals, debts, investments, reload } = useGoals();
+  const { plan, isPro } = useUserPlan();
+  const {
+    goals,
+    debts,
+    investments,
+    primaryGoal,
+    primaryDebt,
+    nextInstallment,
+    reload,
+  } = useGoals();
+
   const { insights } = useGoalsInsights();
-  const { incomeSources } = useIncomeSources();
 
   const [tab, setTab] =
     useState<"goals" | "debts" | "investments" | "income">("goals");
 
-  // Paywall
   const [showPaywall, setShowPaywall] = useState(false);
   const [blockedType, setBlockedType] = useState<
     "goal" | "debt" | "investment" | "income" | null
   >(null);
 
   /* -----------------------------------------------------------
-     COMPUTED
+     ORDENAR METAS
   ------------------------------------------------------------*/
   const orderedGoals = useMemo(() => {
     return [...goals].sort((a, b) => {
@@ -61,11 +69,33 @@ export default function GoalsIndexScreen() {
     });
   }, [goals]);
 
-  const isPro = plan === "PRO";
+  const mainGoal =
+    primaryGoal ?? orderedGoals.find((g) => g.isPrimary) ?? null;
 
+  const otherGoals = orderedGoals.filter((g) => !g.isPrimary);
+
+  /* -----------------------------------------------------------
+     DÍVIDA PRINCIPAL (regra igual metas)
+  ------------------------------------------------------------*/
+  const orderedDebts = useMemo(() => {
+    return [...debts].sort((a, b) => {
+      if (a.isPrimary) return -1;
+      if (b.isPrimary) return 1;
+      return 0;
+    });
+  }, [debts]);
+
+  const mainDebt = orderedDebts[0] ?? null;
+  const otherDebts = orderedDebts.slice(1);
+
+  const isProUser = plan === "pro" || plan === "PRO";
+
+  /* -----------------------------------------------------------
+     PAYWALL
+  ------------------------------------------------------------*/
   const isPaywallLimit = useCallback(
     (type: "goal" | "debt" | "investment") => {
-      if (plan === "PRO") return false;
+      if (isPro) return false;
 
       if (type === "goal" && goals.length >= 1) return true;
       if (type === "debt" && debts.length >= 1) return true;
@@ -77,11 +107,24 @@ export default function GoalsIndexScreen() {
   );
 
   /* -----------------------------------------------------------
-     NAVIGAÇÃO
+     NAVIGATION — rotas simples do Expo
   ------------------------------------------------------------*/
-  const openDetail = (id: string) => {
-    router.push(`/goals/${id}`);
-  };
+  const openDetail = (id: string) => router.push(`/goals/${id}`);
+
+  const openContribution = (id: string) =>
+    router.push(`/goals/details/add?id=${id}`);
+
+  const openEdit = (id: string) =>
+    router.push(`/goals/details/edit?id=${id}`);
+
+  const openDebtPay = (id: string) =>
+    router.push(`/goals/details/debt-pay?id=${id}`);
+
+  const openDebtEdit = (id: string) =>
+    router.push(`/goals/details/debt-edit?id=${id}`);
+
+  const openDebtSettle = (id: string) =>
+    router.push(`/goals/details/debt-settle?id=${id}`);
 
   const openCreate = () => {
     const type =
@@ -93,8 +136,8 @@ export default function GoalsIndexScreen() {
         ? "investment"
         : "income";
 
-    if (isPaywallLimit(type as any)) {
-      setBlockedType(type as any);
+    if (isPaywallLimit(type)) {
+      setBlockedType(type);
       setShowPaywall(true);
       return;
     }
@@ -103,7 +146,7 @@ export default function GoalsIndexScreen() {
   };
 
   /* -----------------------------------------------------------
-     RENDER
+     UI
   ------------------------------------------------------------*/
   return (
     <>
@@ -113,27 +156,39 @@ export default function GoalsIndexScreen() {
           <RefreshControl tintColor="#fff" refreshing={false} onRefresh={reload} />
         }
       >
-        {/* HEADER */}
         <GoalsHeader />
 
-        {/* SEGMENTED */}
         <View style={{ marginTop: 12 }}>
           <GoalsSegmented value={tab} onChange={(v) => setTab(v as any)} />
         </View>
 
-        {/* === TAB: RENDA === */}
+        {/* RENDA */}
         {tab === "income" && (
           <View style={{ marginTop: 6 }}>
             <GoalsIncomeBlock />
           </View>
         )}
 
-        {/* === TAB: DÍVIDAS === */}
+        {/* DÍVIDAS — AGORA COM CARD PRINCIPAL */}
         {tab === "debts" && (
-          <GoalsDebtList debts={debts} onPress={(id) => openDetail(id)} />
+          <>
+            {mainDebt && (
+              <View style={{ marginTop: 6 }}>
+                <GoalDebtMainCard
+                  debt={mainDebt}
+                  onPressPay={() => openDebtPay(mainDebt.id)}
+                  onPressEdit={() => openDebtEdit(mainDebt.id)}
+                  onPressSettle={() => openDebtSettle(mainDebt.id)}
+                />
+              </View>
+            )}
+
+            {/* OUTRAS DÍVIDAS */}
+            <GoalsDebtList debts={otherDebts} onPress={(id) => openDetail(id)} />
+          </>
         )}
 
-        {/* === TAB: INVESTIMENTOS === */}
+        {/* INVESTIMENTOS */}
         {tab === "investments" && (
           <GoalsInvestmentList
             investments={investments}
@@ -146,20 +201,46 @@ export default function GoalsIndexScreen() {
           />
         )}
 
-        {/* === TAB: METAS === */}
+        {/* METAS */}
         {tab === "goals" && (
           <>
-            {orderedGoals.length === 0 ? (
+            {mainGoal && (
+              <View style={{ marginTop: 6 }}>
+                <GoalMainCard
+                  goal={mainGoal}
+                  progress={mainGoal.progressPercent / 100}
+                  remainingAmount={mainGoal.remainingAmount}
+                  nextInstallment={nextInstallment(mainGoal.id)}
+                  isPro={isPro}
+                  onPressDetails={() =>
+                    mainGoal.type === "debt"
+                      ? openDebtPay(mainGoal.id)
+                      : openContribution(mainGoal.id)
+                  }
+                  onPressEdit={() =>
+                    mainGoal.type === "debt"
+                      ? openDebtEdit(mainGoal.id)
+                      : openEdit(mainGoal.id)
+                  }
+                />
+              </View>
+            )}
+
+            {otherGoals.length === 0 ? (
               <GoalsEmptyState />
             ) : (
-              orderedGoals.map((g) => (
-                <GoalCard key={g.id} goal={g} onPress={() => openDetail(g.id)} />
+              otherGoals.map((g) => (
+                <GoalCard
+                  key={g.id}
+                  goal={g}
+                  onPress={() => openDetail(g.id)}
+                />
               ))
             )}
           </>
         )}
 
-        {/* === INSIGHTS === */}
+        {/* INSIGHTS */}
         <View style={{ marginTop: 28, marginBottom: 20 }}>
           <Text style={styles.sectionTitle}>Insights</Text>
 
@@ -170,7 +251,7 @@ export default function GoalsIndexScreen() {
           )}
         </View>
 
-        {/* CTA FINAL */}
+        {/* CTA */}
         <View style={styles.footer}>
           <TouchableOpacity onPress={openCreate} style={styles.footerBtn}>
             <Text style={styles.footerBtnText}>Criar nova {tab}</Text>
@@ -184,9 +265,6 @@ export default function GoalsIndexScreen() {
         </View>
       </ScrollView>
 
-      {/* ============================ */}
-      {/*        MODAL PAYWALL        */}
-      {/* ============================ */}
       <ModalPremiumPaywall
         visible={showPaywall}
         blockedType={blockedType}
@@ -209,7 +287,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "black",
   },
-
   sectionTitle: {
     marginLeft: 18,
     marginBottom: 8,
@@ -218,34 +295,29 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "white",
   },
-
   noInsights: {
     fontFamily: brandFont,
     fontSize: 13,
     marginLeft: 20,
     color: "rgba(255,255,255,0.45)",
   },
-
   footer: {
     paddingHorizontal: 20,
     paddingBottom: 40,
     marginTop: 10,
   },
-
   footerBtn: {
     paddingVertical: 14,
     backgroundColor: "rgba(255,255,255,0.08)",
     borderRadius: 16,
     alignItems: "center",
   },
-
   footerBtnText: {
     fontFamily: brandFont,
     fontSize: 14,
     fontWeight: "600",
     color: "#FFFFFF",
   },
-
   paywallHint: {
     marginTop: 10,
     textAlign: "center",

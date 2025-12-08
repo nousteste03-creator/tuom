@@ -1,7 +1,7 @@
 // hooks/useGoals.ts
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase";
-import { useUserPlan } from "@/hooks/useUserPlan";
+import { useUserPlan } from "@/context/UserPlanContext";
 
 /* ============================================================
    Tipos
@@ -104,18 +104,31 @@ function monthsDiff(from: Date, to: Date): number {
   return total < 0 ? 0 : total;
 }
 
-function computeGoalStats(goal: RawGoalRow, installments: Installment[]): GoalWithStats {
+/* ============================================================
+   Compute Goal Stats
+============================================================ */
+
+function computeGoalStats(
+  goal: RawGoalRow,
+  installments: Installment[]
+): GoalWithStats {
   const now = new Date();
 
-  const title = goal.title ?? "Meta";
+  const title = goal.title ?? goal.titulo ?? "Meta";
+
   const rawType = goal.type ?? goal.tipo ?? "goal";
-  const type = rawType as GoalType;
+  const normalizedType =
+    rawType === "goal" || rawType === "debt" || rawType === "investment"
+      ? rawType
+      : "goal";
+
+  const type = normalizedType as GoalType;
 
   const targetAmount = Number(goal.target_amount ?? 0);
   const currentAmount = Number(goal.current_amount ?? 0);
 
-  const start = goal.start_date ?? new Date().toISOString();
-  const end = goal.end_date ?? null;
+  const start = goal.start_date ?? goal.data_inicio ?? new Date().toISOString();
+  const end = goal.end_date ?? goal.data_fim ?? null;
 
   const startDateObj = start ? new Date(start) : now;
   const endDateObj = end ? new Date(end) : null;
@@ -170,7 +183,8 @@ function computeGoalStats(goal: RawGoalRow, installments: Installment[]): GoalWi
     startDate: start,
     endDate: end,
     status: (goal.status as any) ?? "active",
-    isPrimary: Boolean(goal.is_primary),
+
+    isPrimary: goal.is_primary === true,
 
     autoRuleMonthly:
       goal.auto_rule_monthly != null ? Number(goal.auto_rule_monthly) : null,
@@ -184,6 +198,10 @@ function computeGoalStats(goal: RawGoalRow, installments: Installment[]): GoalWi
     aheadOrBehindMonths,
   };
 }
+
+/* ============================================================
+   Projection (Investment)
+============================================================ */
 
 function computeInvestmentProjection(goal: GoalWithStats) {
   if (goal.type !== "investment") return null;
@@ -247,6 +265,10 @@ function computeInvestmentProjection(goal: GoalWithStats) {
   };
 }
 
+/* ============================================================
+   Helpers: add months + generate installments
+============================================================ */
+
 function addMonths(date: Date, months: number) {
   const d = new Date(date);
   d.setMonth(d.getMonth() + months);
@@ -261,7 +283,6 @@ async function generateInstallments(goalId: string, input: any, userId: string) 
   if (!firstDate) return;
 
   const amount = Number(input.installmentAmount || 0);
-
   const rows = [];
 
   for (let i = 0; i < total; i++) {
@@ -295,11 +316,17 @@ export function useGoals() {
   const [rawInstallments, setRawInstallments] =
     useState<RawInstallmentRow[]>([]);
 
-  const { isPro } = useUserPlan();
+  /** ----------------------------
+   *  AJUSTE DO PLANO (FREE/PRO)
+   * ----------------------------
+   * Leitura segura — NÃO cria instâncias duplicadas,
+   * NÃO força remount e NÃO conflita com o plano do usuário.
+   */
+  const userPlan = useUserPlan();
+  const isPro = userPlan?.isPro ?? false;
 
-  /* ------------------------------------------------------------
-     RELOAD — corrigido
-  ------------------------------------------------------------ */
+  /* ------------------ RELOAD ------------------ */
+
   const reload = useCallback(async () => {
     if (isReloading) return;
     isReloading = true;
@@ -344,9 +371,7 @@ export function useGoals() {
     reload();
   }, [reload]);
 
-  /* ============================================================
-     PAYMENT-RECONCILE — agora 100% seguro
-============================================================ */
+  /* ------------------ RECONCILE ------------------ */
 
   const lastReconcileSnapshot = useRef<string>("");
 
@@ -357,24 +382,15 @@ export function useGoals() {
       rawInstallments.filter((i) => i.status === "paid")
     );
 
-    if (snapshot === lastReconcileSnapshot.current) {
-      return; // nada mudou
-    }
-
+    if (snapshot === lastReconcileSnapshot.current) return;
     lastReconcileSnapshot.current = snapshot;
 
     async function reconcile() {
       try {
-        console.log("DEBUG/PAYMENT-RECONCILE → iniciando");
-
         const paidByGoal: Record<string, number> = {};
 
         for (const inst of rawInstallments) {
-          if (
-            inst.status === "paid" &&
-            inst.goal_id &&
-            inst.amount != null
-          ) {
+          if (inst.status === "paid" && inst.goal_id && inst.amount != null) {
             const key = inst.goal_id;
             const prev = paidByGoal[key] ?? 0;
             paidByGoal[key] = prev + Number(inst.amount || 0);
@@ -394,16 +410,14 @@ export function useGoals() {
           }
         }
       } catch (err) {
-        console.log("ERROR/PAYMENT-RECONCILE → exceção:", err);
+        console.log("ERROR/PAYMENT-RECONCILE:", err);
       }
     }
 
     reconcile();
   }, [rawGoals, rawInstallments]);
 
-  /* ============================================================
-     Installments por goal
-============================================================ */
+  /* ------------------ MONTAR INSTALLMENTS ------------------ */
 
   const installmentsByGoalId = useMemo(() => {
     const map: Record<string, Installment[]> = {};
@@ -433,7 +447,7 @@ export function useGoals() {
 
   /* ============================================================
      Build goals finais
-============================================================ */
+  ============================================================ */
 
   const allGoals = useMemo(() => {
     return rawGoals.map((g) => {
@@ -448,8 +462,16 @@ export function useGoals() {
     });
   }, [rawGoals, installmentsByGoalId]);
 
-  const goals = useMemo(() => allGoals.filter((g) => g.type === "goal"), [allGoals]);
-  const debts = useMemo(() => allGoals.filter((g) => g.type === "debt"), [allGoals]);
+  const goals = useMemo(
+    () => allGoals.filter((g) => g.type === "goal"),
+    [allGoals]
+  );
+
+  const debts = useMemo(
+    () => allGoals.filter((g) => g.type === "debt"),
+    [allGoals]
+  );
+
   const investments = useMemo(
     () => allGoals.filter((g) => g.type === "investment"),
     [allGoals]
@@ -462,8 +484,8 @@ export function useGoals() {
   }, [allGoals, goals]);
 
   /* ============================================================
-     FREE LIMIT CHECK
-============================================================ */
+     FREE LIMIT CHECK (USANDO isPro AJUSTADO)
+  ============================================================ */
 
   const activeCount = goals.filter((g) => g.status === "active").length;
   const canCreateNewGoal = isPro || activeCount < 1;
@@ -472,7 +494,7 @@ export function useGoals() {
 
   /* ============================================================
      Outflow mensal
-============================================================ */
+  ============================================================ */
 
   function computeOutflow(list: GoalWithStats[], type: GoalType) {
     const now = new Date();
@@ -514,8 +536,8 @@ export function useGoals() {
     monthlyDebtOutflow + monthlyGoalsOutflow + monthlyInvestmentsOutflow;
 
   /* ============================================================
-     Métodos helpers
-============================================================ */
+     Métodos helpers de leitura
+  ============================================================ */
 
   const goalProgress = useCallback(
     (id: string) =>
@@ -540,14 +562,13 @@ export function useGoals() {
   );
 
   const installmentsByGoal = useCallback(
-    (id: string) =>
-      allGoals.find((g) => g.id === id)?.installments ?? [],
+    (id: string) => allGoals.find((g) => g.id === id)?.installments ?? [],
     [allGoals]
   );
 
   /* ============================================================
-     CREATE
-============================================================ */
+     CREATE GOAL — AJUSTADO (SEM isPro NA DEPENDÊNCIA)
+  ============================================================ */
 
   const createGoal = useCallback(
     async (input: any) => {
@@ -588,7 +609,10 @@ export function useGoals() {
         .select("id")
         .single();
 
-      if (error) return null;
+      if (error) {
+        console.log("ERROR/createGoal:", error);
+        return null;
+      }
 
       const goalId = data?.id;
 
@@ -607,12 +631,12 @@ export function useGoals() {
 
       return goalId;
     },
-    [isPro, reload]
+    [reload] // FIX PRINCIPAL — remove dependência com isPro
   );
 
   /* ============================================================
-     UPDATE
-============================================================ */
+     UPDATE GOAL
+  ============================================================ */
 
   const updateGoal = useCallback(
     async (goalId: string, patch: any) => {
@@ -635,6 +659,8 @@ export function useGoals() {
       if (patch.isPrimary !== undefined)
         updates.is_primary = patch.isPrimary;
 
+      if (Object.keys(updates).length === 0) return;
+
       await supabase.from("goals").update(updates).eq("id", goalId);
       await reload();
     },
@@ -643,7 +669,7 @@ export function useGoals() {
 
   /* ============================================================
      SET PRIMARY
-============================================================ */
+  ============================================================ */
 
   const setPrimaryGoal = useCallback(
     async (goalId: string) => {
@@ -670,7 +696,7 @@ export function useGoals() {
 
   /* ============================================================
      INSTALLMENTS OPS
-============================================================ */
+  ============================================================ */
 
   const markInstallmentPaid = useCallback(
     async (installmentId: string) => {
@@ -722,7 +748,14 @@ export function useGoals() {
 
       if (patch.dueDate !== undefined) updates.due_date = patch.dueDate;
       if (patch.amount !== undefined) updates.amount = patch.amount;
-      if (patch.status !== undefined) updates.status = patch.status;
+      if (patch.status !== undefined) {
+        updates.status = patch.status;
+        if (patch.status === "paid") {
+          updates.paid_at = new Date().toISOString();
+        }
+      }
+
+      if (Object.keys(updates).length === 0) return;
 
       await supabase
         .from("goal_installments")
@@ -735,8 +768,189 @@ export function useGoals() {
   );
 
   /* ============================================================
+     AMORTIZAÇÃO
+  ============================================================ */
+
+  const applyAmortization = useCallback(
+    async (goalId: string, manualAmount: number) => {
+      const amountRaw = Number(manualAmount || 0);
+      if (amountRaw <= 0) return { applied: 0, newCurrentAmount: null };
+
+      const { data: instRows, error: instError } = await supabase
+        .from("goal_installments")
+        .select("*")
+        .eq("goal_id", goalId)
+        .order("due_date", { ascending: true });
+
+      if (instError || !instRows) {
+        console.log("ERROR/applyAmortization - installments:", instError);
+        return { applied: 0, newCurrentAmount: null };
+      }
+
+      const upcoming = instRows.filter((i) => i.status !== "paid");
+      if (!upcoming.length) {
+        const { data: goalRows } = await supabase
+          .from("goals")
+          .select("current_amount, target_amount")
+          .eq("id", goalId)
+          .limit(1);
+
+        const goalRow = goalRows?.[0];
+        if (!goalRow) return { applied: 0, newCurrentAmount: null };
+
+        const currentExisting = Number(goalRow.current_amount || 0);
+        const newCurrent = currentExisting + amountRaw;
+
+        await supabase
+          .from("goals")
+          .update({ current_amount: newCurrent })
+          .eq("id", goalId);
+
+        await reload();
+        return { applied: amountRaw, newCurrentAmount: newCurrent };
+      }
+
+      const totalPending = upcoming.reduce(
+        (acc, inst) => acc + Number(inst.amount || 0),
+        0
+      );
+
+      if (totalPending <= 0) {
+        return { applied: 0, newCurrentAmount: null };
+      }
+
+      const appliedAmount = Math.min(amountRaw, totalPending);
+      let remainingToApply = appliedAmount;
+
+      for (const inst of upcoming) {
+        if (remainingToApply <= 0) break;
+
+        const originalAmount = Number(inst.amount || 0);
+        if (originalAmount <= 0) continue;
+
+        if (remainingToApply >= originalAmount - 0.01) {
+          await supabase
+            .from("goal_installments")
+            .delete()
+            .eq("id", inst.id);
+
+          remainingToApply -= originalAmount;
+        } else {
+          const newAmount = originalAmount - remainingToApply;
+
+          await supabase
+            .from("goal_installments")
+            .update({ amount: newAmount })
+            .eq("id", inst.id);
+
+          remainingToApply = 0;
+        }
+      }
+
+      const { data: goalRows } = await supabase
+        .from("goals")
+        .select("current_amount, target_amount")
+        .eq("id", goalId)
+        .limit(1);
+
+      const goalRow = goalRows?.[0];
+      if (!goalRow) {
+        await reload();
+        return { applied: appliedAmount, newCurrentAmount: null };
+      }
+
+      const currentExisting = Number(goalRow.current_amount || 0);
+      const targetAmount = Number(goalRow.target_amount || 0);
+      const newCurrent = currentExisting + appliedAmount;
+
+      const updatePayload: any = { current_amount: newCurrent };
+
+      if (targetAmount > 0 && newCurrent >= targetAmount) {
+        updatePayload.status = "completed";
+      }
+
+      await supabase.from("goals").update(updatePayload).eq("id", goalId);
+
+      await reload();
+
+      return { applied: appliedAmount, newCurrentAmount: newCurrent };
+    },
+    [reload]
+  );
+
+  /* ============================================================
+     CREATE INSTALLMENT
+  ============================================================ */
+
+  const createInstallment = useCallback(
+    async (
+      goalId: string,
+      data: {
+        amount: number;
+        dueDate?: string | null;
+        status?: InstallmentStatus;
+        sequence?: number | null;
+      }
+    ) => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return null;
+
+      const status: InstallmentStatus = data.status ?? "paid";
+      const amount = Number(data.amount || 0);
+      const dueDate =
+        data.dueDate ?? new Date().toISOString().split("T")[0];
+
+      const insertPayload: any = {
+        user_id: user.id,
+        goal_id: goalId,
+        amount,
+        due_date: dueDate,
+        status,
+        sequence: data.sequence ?? null,
+      };
+
+      if (status === "paid") {
+        insertPayload.paid_at = new Date().toISOString();
+      }
+
+      const { data: instRows, error } = await supabase
+        .from("goal_installments")
+        .insert(insertPayload)
+        .select("id")
+        .single();
+
+      if (error) {
+        console.log("ERROR/createInstallment:", error);
+        return null;
+      }
+
+      if (status === "paid" && amount > 0) {
+        const { data: goalRows } = await supabase
+          .from("goals")
+          .select("current_amount")
+          .eq("id", goalId)
+          .limit(1);
+
+        const currentExisting = Number(goalRows?.[0]?.current_amount || 0);
+
+        await supabase
+          .from("goals")
+          .update({ current_amount: currentExisting + amount })
+          .eq("id", goalId);
+      }
+
+      await reload();
+
+      return instRows?.id ?? null;
+    },
+    [reload]
+  );
+
+  /* ============================================================
      RETURN FINAL
-============================================================ */
+  ============================================================ */
 
   return {
     loading,
@@ -772,5 +986,8 @@ export function useGoals() {
     updateGoal,
     markInstallmentPaid,
     updateInstallment,
+
+    createInstallment,
+    applyAmortization,
   };
 }

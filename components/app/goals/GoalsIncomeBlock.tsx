@@ -10,7 +10,7 @@ import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 
 import { useIncomeSources } from "@/hooks/useIncomeSources";
-import { useUserPlan } from "@/hooks/useUserPlan";
+import { useUserPlan } from "@/context/UserPlanContext";
 import { useRouter } from "expo-router";
 
 const brandFont = Platform.select({
@@ -21,14 +21,20 @@ const brandFont = Platform.select({
 
 /**
  * Importante:
- * Este componente agora está memoizado para evitar
- * re-render em cascata que estava derrubando o estado
- * de Goals quando trocava de aba.
+ * Memoizado para evitar re-render em cascata.
  */
 
 function GoalsIncomeBlock() {
   const router = useRouter();
-  const { isPro } = useUserPlan();
+
+  /** -------------------------------------------
+   * AJUSTE DO PROBLEMA DO PLANO (FREE/PRO)
+   * -------------------------------------------
+   * Leitura segura para evitar instâncias duplicadas
+   * e evitar re-render em cascata ao trocar de abas.
+   */
+  const userPlan = useUserPlan();
+  const isPro = userPlan?.isPro ?? false;
 
   const {
     incomeSources,

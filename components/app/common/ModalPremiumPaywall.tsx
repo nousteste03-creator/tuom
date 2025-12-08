@@ -1,3 +1,5 @@
+// components/app/common/ModalPremiumPaywall.tsx
+
 import React, { useRef, useEffect, useMemo } from "react";
 import {
   View,
@@ -10,15 +12,20 @@ import {
 import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
 
+import { supabase } from "@/lib/supabase";
+import { useUserPlan } from "@/context/UserPlanContext"; // CONTEXTO OFICIAL
+
 const brandFont = Platform.select({
   ios: "SF Pro Display",
   android: "Inter",
   default: "System",
 });
 
+type BlockType = "goal" | "debt" | "investment" | "income";
+
 type Props = {
   visible: boolean;
-  blockedType?: "goal" | "debt" | "investment" | "income";
+  blockedType?: BlockType;
   onClose: () => void;
   onUpgrade: () => void;
 };
@@ -29,13 +36,60 @@ export default function ModalPremiumPaywall({
   onClose,
   onUpgrade,
 }: Props) {
-  // ==== HOOKS DEVEM FICAR NO TOPO SEMPRE ====
 
+  const userPlan = useUserPlan();
+  const reloadPlan = userPlan?.reload;
+
+  // ANIMAÇÃO
   const opacity = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(0.92)).current;
   const translate = useRef(new Animated.Value(12)).current;
 
-  // Texto dinâmico — sempre executado (mesmo invisível)
+  useEffect(() => {
+    if (visible) {
+      Animated.parallel([
+        Animated.timing(opacity, {
+          toValue: 1,
+          duration: 220,
+          useNativeDriver: true,
+        }),
+        Animated.spring(scale, {
+          toValue: 1,
+          friction: 7,
+          tension: 40,
+          useNativeDriver: true,
+        }),
+        Animated.timing(translate, {
+          toValue: 0,
+          duration: 260,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      opacity.setValue(0);
+      scale.setValue(0.92);
+      translate.setValue(12);
+    }
+  }, [visible]);
+
+  // UPGRADE REAL — AGORA FUNCIONA
+  async function handleUpgrade() {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user?.id) return;
+
+    await supabase
+      .from("user_settings")
+      .update({ plan: "pro" })
+      .eq("user_id", user.id);
+
+    await reloadPlan?.(); // Atualiza provider
+    onUpgrade?.(); // Volta pra tela anterior
+  }
+
+  // TEXTOS
   const title = useMemo(() => {
     switch (blockedType) {
       case "goal":
@@ -54,49 +108,18 @@ export default function ModalPremiumPaywall({
   const subtitle = useMemo(() => {
     switch (blockedType) {
       case "goal":
-        return "Usuários FREE podem criar somente 1 meta.";
+        return "Crie metas ilimitadas e acompanhe sua evolução com projeções inteligentes.";
       case "debt":
-        return "Usuários FREE podem criar somente 1 dívida.";
+        return "Gerencie suas dívidas com calendário e acompanhamento automático.";
       case "investment":
-        return "Usuários FREE podem criar somente 1 investimento.";
+        return "Adicione investimentos ilimitados e veja projeções reais.";
       case "income":
-        return "Receitas são ilimitadas — talvez o erro foi outro.";
+        return "Cadastre múltiplas fontes de renda e tenha fluxo mensal avançado.";
       default:
-        return "Assine o NÖUS PRO para desbloquear funcionalidades avançadas.";
+        return "Assine o NÖUS PRO e libere recursos avançados.";
     }
   }, [blockedType]);
 
-  // ANIMAÇÃO
-  useEffect(() => {
-    if (visible) {
-      Animated.parallel([
-        Animated.timing(opacity, {
-          toValue: 1,
-          duration: 220,
-          useNativeDriver: true,
-        }),
-
-        Animated.spring(scale, {
-          toValue: 1,
-          friction: 7,
-          tension: 40,
-          useNativeDriver: true,
-        }),
-
-        Animated.timing(translate, {
-          toValue: 0,
-          duration: 250,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    } else {
-      opacity.setValue(0);
-      scale.setValue(0.92);
-      translate.setValue(12);
-    }
-  }, [visible]);
-
-  // EARLY RETURN — permitido porque todos hooks já rodaram
   if (!visible) return null;
 
   return (
@@ -115,18 +138,16 @@ export default function ModalPremiumPaywall({
         <Text style={styles.subtitle}>{subtitle}</Text>
 
         <View style={styles.features}>
-          <Feature icon="infinite" text="Metas ilimitadas" />
-          <Feature icon="trending-up" text="Investimentos ilimitados" />
-          <Feature icon="card" text="Dívidas ilimitadas" />
-          <Feature icon="wallet" text="Receitas ilimitadas" />
-          <Feature icon="sparkles" text="Insights avançados" />
+          <Feature icon="add-circle-outline" text="Itens ilimitados" />
           <Feature icon="bar-chart" text="Projeções inteligentes" />
+          <Feature icon="sparkles" text="Insights avançados" />
+          <Feature icon="shield-checkmark" text="Prioridade e controle total" />
         </View>
 
         <Text style={styles.price}>R$16,90/mês</Text>
         <Text style={styles.small}>Cancelamento fácil, sem fidelidade.</Text>
 
-        <TouchableOpacity style={styles.button} onPress={onUpgrade}>
+        <TouchableOpacity style={styles.button} onPress={handleUpgrade}>
           <Text style={styles.buttonText}>Assinar NÖUS PRO</Text>
         </TouchableOpacity>
 
@@ -141,7 +162,7 @@ export default function ModalPremiumPaywall({
 function Feature({ icon, text }: { icon: string; text: string }) {
   return (
     <View style={styles.featureItem}>
-      <Ionicons name={icon as any} size={18} color="white" style={{ opacity: 0.8 }} />
+      <Ionicons name={icon as any} size={18} color="white" style={{ opacity: 0.85 }} />
       <Text style={styles.featureText}>{text}</Text>
     </View>
   );
@@ -153,14 +174,15 @@ const styles = StyleSheet.create({
     inset: 0,
     justifyContent: "center",
     alignItems: "center",
+    zIndex: 999,
   },
   blurBackground: {
     ...StyleSheet.absoluteFillObject,
   },
   card: {
     width: "86%",
-    padding: 22,
-    paddingBottom: 32,
+    padding: 24,
+    paddingBottom: 34,
     borderRadius: 24,
     backgroundColor: "rgba(255,255,255,0.08)",
     borderWidth: 1,
@@ -171,15 +193,15 @@ const styles = StyleSheet.create({
     fontSize: 22,
     color: "white",
     fontWeight: "700",
-    marginBottom: 8,
+    marginBottom: 6,
     textAlign: "center",
   },
   subtitle: {
     fontFamily: brandFont,
     fontSize: 14,
-    color: "rgba(255,255,255,0.6)",
+    color: "rgba(255,255,255,0.65)",
     textAlign: "center",
-    marginBottom: 18,
+    marginBottom: 16,
   },
   features: {
     marginVertical: 10,
