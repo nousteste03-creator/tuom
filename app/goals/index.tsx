@@ -1,3 +1,5 @@
+// app/goals/index.tsx
+
 import React, { useMemo, useState, useCallback } from "react";
 import {
   View,
@@ -15,6 +17,7 @@ import GoalsSegmented from "@/components/app/goals/GoalsSegmented";
 import GoalCard from "@/components/app/goals/GoalCard";
 import GoalMainCard from "@/components/app/goals/GoalMainCard";
 import GoalDebtMainCard from "@/components/app/goals/GoalDebtMainCard";
+import GoalInvestmentMainCard from "@/components/app/goals/GoalInvestmentMainCard";
 
 import GoalsDebtList from "@/components/app/goals/GoalsDebtList";
 import GoalsInvestmentList from "@/components/app/goals/GoalsInvestmentList";
@@ -36,14 +39,13 @@ const brandFont = Platform.select({
 
 export default function GoalsIndexScreen() {
   const router = useRouter();
-
   const { plan, isPro } = useUserPlan();
+
   const {
     goals,
     debts,
     investments,
     primaryGoal,
-    primaryDebt,
     nextInstallment,
     reload,
   } = useGoals();
@@ -55,12 +57,12 @@ export default function GoalsIndexScreen() {
 
   const [showPaywall, setShowPaywall] = useState(false);
   const [blockedType, setBlockedType] = useState<
-    "goal" | "debt" | "investment" | "income" | null
+    "goal" | "debt" | "investment" | null
   >(null);
 
-  /* -----------------------------------------------------------
+  /* ───────────────────────────────────────────────
      ORDENAR METAS
-  ------------------------------------------------------------*/
+  ─────────────────────────────────────────────── */
   const orderedGoals = useMemo(() => {
     return [...goals].sort((a, b) => {
       if (a.isPrimary) return -1;
@@ -74,9 +76,9 @@ export default function GoalsIndexScreen() {
 
   const otherGoals = orderedGoals.filter((g) => !g.isPrimary);
 
-  /* -----------------------------------------------------------
-     DÍVIDA PRINCIPAL (regra igual metas)
-  ------------------------------------------------------------*/
+  /* ───────────────────────────────────────────────
+     DÍVIDAS
+  ─────────────────────────────────────────────── */
   const orderedDebts = useMemo(() => {
     return [...debts].sort((a, b) => {
       if (a.isPrimary) return -1;
@@ -88,11 +90,9 @@ export default function GoalsIndexScreen() {
   const mainDebt = orderedDebts[0] ?? null;
   const otherDebts = orderedDebts.slice(1);
 
-  const isProUser = plan === "pro" || plan === "PRO";
-
-  /* -----------------------------------------------------------
+  /* ───────────────────────────────────────────────
      PAYWALL
-  ------------------------------------------------------------*/
+  ─────────────────────────────────────────────── */
   const isPaywallLimit = useCallback(
     (type: "goal" | "debt" | "investment") => {
       if (isPro) return false;
@@ -103,20 +103,24 @@ export default function GoalsIndexScreen() {
 
       return false;
     },
-    [plan, goals, debts, investments]
+    [isPro, goals, debts, investments]
   );
 
-  /* -----------------------------------------------------------
-     NAVIGATION — rotas simples do Expo
-  ------------------------------------------------------------*/
+  /* ───────────────────────────────────────────────
+     NAVIGATION
+  ─────────────────────────────────────────────── */
+
+  // Detalhe padrão da meta/dívida/investimento
   const openDetail = (id: string) => router.push(`/goals/${id}`);
 
+  // Fluxos antigos de contribuição/edição de meta – mantidos
   const openContribution = (id: string) =>
     router.push(`/goals/details/add?id=${id}`);
 
   const openEdit = (id: string) =>
     router.push(`/goals/details/edit?id=${id}`);
 
+  // Dívidas
   const openDebtPay = (id: string) =>
     router.push(`/goals/details/debt-pay?id=${id}`);
 
@@ -126,6 +130,9 @@ export default function GoalsIndexScreen() {
   const openDebtSettle = (id: string) =>
     router.push(`/goals/details/debt-settle?id=${id}`);
 
+  /* ───────────────────────────────────────────────
+     CRIAR NOVO ITEM
+  ─────────────────────────────────────────────── */
   const openCreate = () => {
     const type =
       tab === "goals"
@@ -136,6 +143,12 @@ export default function GoalsIndexScreen() {
         ? "investment"
         : "income";
 
+    // income nunca passa por paywall
+    if (type === "income") {
+      router.push(`/goals/create?type=${type}`);
+      return;
+    }
+
     if (isPaywallLimit(type)) {
       setBlockedType(type);
       setShowPaywall(true);
@@ -145,9 +158,9 @@ export default function GoalsIndexScreen() {
     router.push(`/goals/create?type=${type}`);
   };
 
-  /* -----------------------------------------------------------
+  /* ───────────────────────────────────────────────
      UI
-  ------------------------------------------------------------*/
+  ─────────────────────────────────────────────── */
   return (
     <>
       <ScrollView
@@ -169,7 +182,7 @@ export default function GoalsIndexScreen() {
           </View>
         )}
 
-        {/* DÍVIDAS — AGORA COM CARD PRINCIPAL */}
+        {/* DÍVIDAS */}
         {tab === "debts" && (
           <>
             {mainDebt && (
@@ -183,22 +196,31 @@ export default function GoalsIndexScreen() {
               </View>
             )}
 
-            {/* OUTRAS DÍVIDAS */}
-            <GoalsDebtList debts={otherDebts} onPress={(id) => openDetail(id)} />
+            <GoalsDebtList debts={otherDebts} onPress={openDetail} />
           </>
         )}
 
         {/* INVESTIMENTOS */}
         {tab === "investments" && (
-          <GoalsInvestmentList
-            investments={investments}
-            isPro={isPro}
-            onPress={(id) => openDetail(id)}
-            onPressUpgrade={() => {
-              setBlockedType("investment");
-              setShowPaywall(true);
-            }}
-          />
+          <View style={{ marginTop: 6 }}>
+            {investments.length > 0 && (
+              <GoalInvestmentMainCard
+                goal={investments[0]}
+                isPro={isPro}
+                onPress={() => openDetail(investments[0].id)}
+              />
+            )}
+
+            <GoalsInvestmentList
+              investments={investments.slice(1)}
+              isPro={isPro}
+              onPress={openDetail}
+              onPressUpgrade={() => {
+                setBlockedType("investment");
+                setShowPaywall(true);
+              }}
+            />
+          </View>
         )}
 
         {/* METAS */}
@@ -230,11 +252,7 @@ export default function GoalsIndexScreen() {
               <GoalsEmptyState />
             ) : (
               otherGoals.map((g) => (
-                <GoalCard
-                  key={g.id}
-                  goal={g}
-                  onPress={() => openDetail(g.id)}
-                />
+                <GoalCard key={g.id} goal={g} onPress={() => openDetail(g.id)} />
               ))
             )}
           </>
@@ -257,7 +275,7 @@ export default function GoalsIndexScreen() {
             <Text style={styles.footerBtnText}>Criar nova {tab}</Text>
           </TouchableOpacity>
 
-          {plan === "FREE" && (
+          {plan === "free" && (
             <Text style={styles.paywallHint}>
               Usuários FREE podem criar 1 meta, 1 dívida e 1 investimento.
             </Text>

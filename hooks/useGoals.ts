@@ -23,6 +23,18 @@ export type Installment = {
   createdAt: string;
 };
 
+/* ------------------------------------------------------------
+   Tipos de séries para investimentos
+------------------------------------------------------------ */
+export type TimeframeKey = "1D" | "1S" | "1M" | "3M" | "1Y" | "ALL";
+
+export type SeriesPoint = {
+  date: string;
+  value: number;
+};
+
+export type SeriesMap = Record<TimeframeKey, SeriesPoint[]>;
+
 export type GoalWithStats = {
   id: string;
   userId: string;
@@ -56,7 +68,8 @@ export type GoalWithStats = {
     monthsToGoal: number | null;
     projectedEndDate: string | null;
     missedContribution: boolean;
-    curveFuture: { date: string; value: number }[];
+    curveFuture: SeriesPoint[];
+    series?: SeriesMap; // <- NOVO
   };
 };
 
@@ -200,6 +213,51 @@ function computeGoalStats(
 }
 
 /* ============================================================
+   Helper — construir séries de investimento
+============================================================ */
+
+function buildInvestmentSeries(
+  currentAmount: number,
+  curveFuture: SeriesPoint[]
+): SeriesMap {
+  const now = new Date();
+
+  const currentPoint: SeriesPoint = {
+    date: now.toISOString().split("T")[0],
+    value: Number(currentAmount ?? 0),
+  };
+
+  // curva completa = ponto atual + projeções futuras
+  const fullCurve: SeriesPoint[] = [currentPoint, ...curveFuture];
+
+  const parse = (d: string) => new Date(d);
+
+  const ensure = (arr: SeriesPoint[]): SeriesPoint[] =>
+    arr.length ? arr : [currentPoint];
+
+  const filterFromDaysAgo = (days: number): SeriesPoint[] => {
+    const limit = new Date(now);
+    limit.setDate(limit.getDate() - days);
+    return fullCurve.filter((p) => parse(p.date) >= limit);
+  };
+
+  const filterFromMonthsAgo = (months: number): SeriesPoint[] => {
+    const limit = new Date(now);
+    limit.setMonth(limit.getMonth() - months);
+    return fullCurve.filter((p) => parse(p.date) >= limit);
+  };
+
+  return {
+    "1D": ensure(filterFromDaysAgo(1)),
+    "1S": ensure(filterFromDaysAgo(7)),
+    "1M": ensure(filterFromMonthsAgo(1)),
+    "3M": ensure(filterFromMonthsAgo(3)),
+    "1Y": ensure(filterFromMonthsAgo(12)),
+    ALL: fullCurve,
+  };
+}
+
+/* ============================================================
    Projection (Investment)
 ============================================================ */
 
@@ -221,6 +279,7 @@ function computeInvestmentProjection(goal: GoalWithStats) {
       projectedEndDate: now.toISOString().split("T")[0],
       missedContribution: false,
       curveFuture: [],
+      series: buildInvestmentSeries(goal.currentAmount, []),
     };
   }
 
@@ -234,13 +293,8 @@ function computeInvestmentProjection(goal: GoalWithStats) {
     monthly > 0 ? Math.ceil(adjustedRemaining / monthly) : null;
 
   let projectedEndDate: string | null = null;
-  if (monthsToGoal !== null) {
-    const cursor = new Date(now);
-    cursor.setMonth(cursor.getMonth() + monthsToGoal);
-    projectedEndDate = cursor.toISOString().split("T")[0];
-  }
+  const curveFuture: SeriesPoint[] = [];
 
-  const curveFuture = [];
   let accumulated = goal.currentAmount;
   let cursor = new Date(now);
 
@@ -255,6 +309,12 @@ function computeInvestmentProjection(goal: GoalWithStats) {
     });
   }
 
+  if (monthsToGoal !== null) {
+    projectedEndDate = cursor.toISOString().split("T")[0];
+  }
+
+  const series = buildInvestmentSeries(goal.currentAmount, curveFuture);
+
   return {
     monthly,
     remaining,
@@ -262,6 +322,7 @@ function computeInvestmentProjection(goal: GoalWithStats) {
     projectedEndDate,
     missedContribution,
     curveFuture,
+    series,
   };
 }
 

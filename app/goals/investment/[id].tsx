@@ -206,7 +206,7 @@ export default function GoalDetailScreen() {
           />
         ) : null}
 
-        {/* INVESTIMENTO — UI PREMIUM */}
+        {/* INVESTIMENTO */}
         {isInvestment && (
           <View style={{ marginTop: 20, paddingHorizontal: 18 }}>
             <InvestmentMainBlock
@@ -228,7 +228,7 @@ export default function GoalDetailScreen() {
           </View>
         )}
 
-        {/* PARCELAS / EVENTOS */}
+        {/* PARCELAS */}
         {hasInstallments && (
           <GoalInstallmentsTimeline installments={goal.installments} />
         )}

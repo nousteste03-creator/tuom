@@ -1,11 +1,76 @@
-// context/UserPlanContext.tsx
-import React, { createContext, useContext } from "react";
-import { useUserPlan as useUserPlanHook } from "@/hooks/useUserPlan";
+import React, { createContext, useContext, useState, useEffect, useMemo } from "react";
+import { supabase } from "@/lib/supabase";
 
-const UserPlanContext = createContext(null);
+export type UserPlan = "free" | "pro";
 
-export function UserPlanProvider({ children }) {
-  const value = useUserPlanHook(); // Hook roda apenas UMA vez
+type Ctx = {
+  plan: UserPlan;
+  isPro: boolean;
+  refreshPlan: () => Promise<void>;
+};
+
+const UserPlanContext = createContext<Ctx>({
+  plan: "free",
+  isPro: false,
+  refreshPlan: async () => {},
+});
+
+export function UserPlanProvider({ children }: { children: React.ReactNode }) {
+  const [plan, setPlan] = useState<UserPlan>("free");
+
+  /* ============================================================
+     FUNÇÃO REAL DE CARREGAMENTO — SEGURA E ESTÁVEL
+  ============================================================ */
+  const loadPlan = async () => {
+    const { data: auth } = await supabase.auth.getUser();
+    const user = auth?.user;
+    if (!user) return;
+
+    const { data } = await supabase
+      .from("user_settings")
+      .select("plan")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    const finalPlan = (data?.plan as UserPlan) ?? "free";
+    setPlan(finalPlan);
+  };
+
+  /* ============================================================
+     USEEFFECT — APENAS UMA VEZ (sem loops)
+  ============================================================ */
+  useEffect(() => {
+    let mounted = true;
+
+    const init = async () => {
+      if (!mounted) return;
+      await loadPlan();
+    };
+
+    init();
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) return;
+      if (session?.user) loadPlan();
+    });
+
+    return () => {
+      mounted = false;
+      listener.subscription.unsubscribe();
+    };
+  }, []);
+
+  /* ============================================================
+     VALUE MEMOIZADO — PREVINE RERENDERS DO PROVIDER
+  ============================================================ */
+  const value = useMemo(
+    () => ({
+      plan,
+      isPro: plan === "pro",
+      refreshPlan: loadPlan,
+    }),
+    [plan]
+  );
 
   return (
     <UserPlanContext.Provider value={value}>
@@ -14,10 +79,9 @@ export function UserPlanProvider({ children }) {
   );
 }
 
+/* ============================================================
+   HOOK
+============================================================ */
 export function useUserPlan() {
-  const ctx = useContext(UserPlanContext);
-  if (!ctx) {
-    throw new Error("useUserPlan deve ser usado dentro de <UserPlanProvider>");
-  }
-  return ctx;
+  return useContext(UserPlanContext);
 }
