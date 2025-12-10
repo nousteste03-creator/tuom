@@ -1,17 +1,17 @@
 import React, { useMemo } from "react";
-import { StyleSheet } from "react-native";
 import Svg, { Path, Line, Circle } from "react-native-svg";
 import {
   Gesture,
   GestureDetector,
 } from "react-native-gesture-handler";
-
 import Animated, {
   useSharedValue,
   useAnimatedProps,
   interpolate,
   runOnJS,
 } from "react-native-reanimated";
+
+type Point = { date: string; value: number };
 
 const AnimatedLine = Animated.createAnimatedComponent(Line);
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
@@ -37,66 +37,76 @@ function smoothPath(points: { x: number; y: number }[]) {
 }
 
 /* ============================================================
+   PROPS
+============================================================ */
+type Props = {
+  curve: Point[];
+  width: number;
+  height: number;
+  lineColor?: string;
+  onPointChange?: (p: { value: number; date: string }) => void;
+};
+
+/* ============================================================
    COMPONENTE PRINCIPAL
 ============================================================ */
 export default function InvestmentInteractiveChart({
   curve,
-  width = 380,
-  height = 200,
+  width,
+  height,
   lineColor = "#7FC5FF",
   onPointChange,
-}) {
-
-  /* ------------------------------------------------------------
-     FAILSAFE DE DADOS
-  ------------------------------------------------------------ */
-  const safeCurve = Array.isArray(curve) && curve.length >= 2
-    ? curve
-    : [
-        { date: "2025-01-01", value: 0 },
-        { date: "2025-02-01", value: 0 },
-      ];
+}: Props) {
+  // Fallback seguro: sempre pelo menos 2 pontos
+  const safeCurve: Point[] =
+    Array.isArray(curve) && curve.length >= 2
+      ? curve
+      : [
+          { date: "2025-01-01", value: 0 },
+          { date: "2025-02-01", value: 0 },
+        ];
 
   const values = safeCurve.map((c) => c.value);
-  const dates = safeCurve.map((c) => c.date);
-
   const min = Math.min(...values);
   const max = Math.max(...values);
   const range = max - min || 1; // evita divisão por zero
 
-  const padding = 20;
-  const chartW = width - padding * 2;
-  const chartH = height - padding * 2;
+  const paddingX = 12;
+  const paddingY = 18;
+  const chartW = Math.max(width - paddingX * 2, 20);
+  const chartH = Math.max(height - paddingY * 2, 20);
 
   /* ------------------------------------------------------------
-     CÁLCULO DOS PONTOS (SEGURO)
+     CÁLCULO DOS PONTOS / PATH (PURO, SEM setState)
   ------------------------------------------------------------ */
   const points = useMemo(() => {
     const lastIndex = safeCurve.length - 1;
 
     return safeCurve.map((item, idx) => {
-      const x = padding + (idx / lastIndex) * chartW;
+      const x =
+        paddingX +
+        (lastIndex === 0 ? 0 : (idx / lastIndex) * chartW);
 
       const y =
-        padding +
+        paddingY +
         chartH -
         ((item.value - min) / range) * chartH;
 
       return { x, y };
     });
-  }, [safeCurve, width, height]);
+  }, [safeCurve, chartW, chartH, min, range]);
 
   const path = useMemo(() => smoothPath(points), [points]);
 
   /* ============================================================
-     SHARED VALUES (GESTOS)
+     SHARED VALUES (GESTO)
 ============================================================ */
   const touchX = useSharedValue(-1);
   const touchY = useSharedValue(-1);
   const active = useSharedValue(0);
 
   /* ============================================================
-     GESTOS — Apple Stocks
+     GESTO APPLE-LIKE
 ============================================================ */
   const gesture = Gesture.Pan()
     .onStart((e) => {
@@ -104,13 +114,18 @@ export default function InvestmentInteractiveChart({
       touchX.value = e.x;
     })
     .onUpdate((e) => {
-      touchX.value = e.x;
+      // limita ao intervalo visível
+      const clampedX = Math.max(
+        paddingX,
+        Math.min(e.x, width - paddingX)
+      );
+      touchX.value = clampedX;
 
-      // index proporcional
+      // mapeia posição X para índice
       const idx = Math.round(
         interpolate(
-          e.x,
-          [padding, width - padding],
+          clampedX,
+          [paddingX, width - paddingX],
           [0, safeCurve.length - 1]
         )
       );
@@ -137,7 +152,7 @@ export default function InvestmentInteractiveChart({
     });
 
   /* ============================================================
-     ANIMAÇÕES DO CROSSHAIR E DO PONTO
+     ANIMATED PROPS – CROSSHAIR / DOT
 ============================================================ */
   const animatedCrosshair = useAnimatedProps(() => ({
     x1: touchX.value,
@@ -159,7 +174,6 @@ export default function InvestmentInteractiveChart({
   return (
     <GestureDetector gesture={gesture}>
       <Svg width={width} height={height}>
-
         {/* Linha suavizada */}
         <Path
           d={path}
@@ -168,17 +182,17 @@ export default function InvestmentInteractiveChart({
           fill="none"
         />
 
-        {/* Linha vertical */}
+        {/* Crosshair vertical */}
         <AnimatedLine
           animatedProps={animatedCrosshair}
           stroke="#ffffff55"
-          strokeWidth={1.2}
+          strokeWidth={1}
         />
 
-        {/* Ponto do dedo */}
+        {/* Ponto */}
         <AnimatedCircle
           animatedProps={animatedDot}
-          r={5}
+          r={4.5}
           fill="#ffffff"
         />
       </Svg>

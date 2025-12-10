@@ -1,20 +1,42 @@
-// app/goals/details/investment/[id].tsx
-
+// app/goals/[id].tsx
 import React, { useMemo } from "react";
 import {
   View,
   Text,
   ScrollView,
-  StyleSheet,
+  ActivityIndicator,
   TouchableOpacity,
   Platform,
-  ActivityIndicator,
+  StyleSheet,
 } from "react-native";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { BlurView } from "expo-blur";
 
+import {
+  useLocalSearchParams,
+  useRouter,
+  useFocusEffect,
+} from "expo-router";
+
+import Screen from "@/components/layout/Screen";
+import Icon from "@/components/ui/Icon";
+
+// METAS / DÍVIDAS
+import GoalMainCard from "@/components/app/goals/GoalMainCard";
+import GoalDebtMainCard from "@/components/app/goals/GoalDebtMainCard";
+
+// INVESTIMENTO — BLOCO PREMIUM
+import InvestmentMainBlock from "@/components/app/investments/InvestmentMainBlock";
+import {
+  SeriesMap,
+  SeriesPoint,
+} from "@/components/app/investments/InvestmentTimeframesPanel";
+
+// TIMELINE / INSIGHTS
+import GoalInstallmentsTimeline from "@/components/app/goals/GoalInstallmentsTimeline";
+import GoalsInsightsCard from "@/components/app/goals/GoalsInsightsCard";
+
+// HOOKS
 import { useGoals } from "@/hooks/useGoals";
-import InvestmentSparkline from "@/components/app/goals/InvestmentSparkline";
+import { useGoalsInsights } from "@/hooks/useGoalsInsights";
 
 const brandFont = Platform.select({
   ios: "SF Pro Display",
@@ -22,265 +44,300 @@ const brandFont = Platform.select({
   default: "System",
 });
 
-export default function InvestmentDetailScreen() {
+/* ============================================================
+   HELPERS — construir séries estilo Apple Stocks
+============================================================ */
+function buildInvestmentSeries(goal: any): SeriesMap {
+  const now = new Date();
+  const todayISO = now.toISOString().split("T")[0];
+
+  const basePoint: SeriesPoint = {
+    date: todayISO,
+    value: Number(goal?.currentAmount ?? 0),
+  };
+
+  const futureCurve: SeriesPoint[] = goal?.projection?.curveFuture ?? [];
+  const curve: SeriesPoint[] = [basePoint, ...futureCurve];
+
+  const parse = (d: string) => new Date(d);
+
+  const filterUntilDaysAhead = (days: number) => {
+    const limit = new Date(now);
+    limit.setDate(limit.getDate() + days);
+    return curve.filter((p) => parse(p.date) <= limit);
+  };
+
+  const filterUntilMonthsAhead = (months: number) => {
+    const limit = new Date(now);
+    limit.setMonth(limit.getMonth() + months);
+    return curve.filter((p) => parse(p.date) <= limit);
+  };
+
+  const ensure = (arr: SeriesPoint[]): SeriesPoint[] =>
+    arr.length ? arr : curve;
+
+  return {
+    "1D": ensure(filterUntilDaysAhead(1)),
+    "1S": ensure(filterUntilDaysAhead(7)),
+    "1M": ensure(filterUntilMonthsAhead(1)),
+    "3M": ensure(filterUntilMonthsAhead(3)),
+    "1Y": ensure(filterUntilMonthsAhead(12)),
+    ALL: curve,
+  };
+}
+
+export default function GoalDetailScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const params = useLocalSearchParams<{ id?: string }>();
 
-  const { investments, nextInstallment } = useGoals();
+  const rawId = params?.id ?? null;
+  const goalId = rawId === "create" ? null : rawId;
 
-  /* -----------------------------------------------------------
-     LOCALIZAR O INVESTIMENTO
-  ------------------------------------------------------------*/
-  const investment = useMemo(
-    () => investments.find((i) => i.id === id) ?? null,
-    [investments, id]
+  const { loading, goals, debts, investments, reload } = useGoals();
+  const { insights } = useGoalsInsights();
+
+  /* ============================================================
+     RELOAD ao focar — versão corrigida com delay
+============================================================ */
+  useFocusEffect(
+    React.useCallback(() => {
+      const timeout = setTimeout(() => {
+        reload(); // garante atualização pós-navegação
+      }, 120);
+
+      return () => clearTimeout(timeout);
+    }, [])
   );
 
-  if (!investment) {
+  /* ============================================================
+     ENCONTRAR ITEM
+============================================================ */
+  const goal = useMemo(() => {
+    if (!goalId) return null;
+
     return (
-      <View style={styles.center}>
-        <ActivityIndicator color="#fff" />
-        <Text style={styles.loadingText}>Carregando investimento...</Text>
-      </View>
+      goals.find((g) => g.id === goalId) ||
+      debts.find((d) => d.id === goalId) ||
+      investments.find((i) => i.id === goalId) ||
+      null
+    );
+  }, [goalId, goals, debts, investments]);
+
+  const isDebt = goal?.type === "debt";
+  const isInvestment = goal?.type === "investment";
+  const hasInstallments = (goal?.installments ?? []).length > 0;
+
+  /* ============================================================
+     BACK HANDLER COM RELOAD
+============================================================ */
+  const handleBack = () => {
+    // "push reload": garante que o estado global de metas esteja atualizado
+    reload();
+
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace("/goals");
+    }
+  };
+
+  /* ============================================================
+     LOADING / NOT FOUND
+============================================================ */
+  if (loading && !goal) {
+    return (
+      <Screen style={styles.center}>
+        <ActivityIndicator size="large" color="#fff" />
+      </Screen>
     );
   }
 
-  /* -----------------------------------------------------------
-     IMPORTAÇÃO REAL DOS CAMPOS DO HOOK
-  ------------------------------------------------------------*/
-  const projection = investment.projection ?? null;
-  const aporteMensal =
-    investment.autoRuleMonthly ??
-    investment.suggestedMonthly ??
-    0;
+  if (!goal) {
+    return (
+      <Screen style={styles.center}>
+        <Text style={styles.notFound}>Meta não encontrada.</Text>
+        <TouchableOpacity onPress={handleBack} style={styles.backBtn}>
+          <Text style={styles.backText}>Voltar</Text>
+        </TouchableOpacity>
+      </Screen>
+    );
+  }
 
-  const remainingAmount = investment.remainingAmount;
-  const progressPercent = investment.progressPercent;
+  /* ============================================================
+     SERIES (INVESTIMENTO)
+============================================================ */
+  const series: SeriesMap = isInvestment
+    ? buildInvestmentSeries(goal)
+    : {
+        "1D": [],
+        "1S": [],
+        "1M": [],
+        "3M": [],
+        "1Y": [],
+        ALL: [],
+      };
 
-  const next = nextInstallment(investment.id);
-
-  /* -----------------------------------------------------------
-     UI COMPLETA (Apple Stocks Style)
-  ------------------------------------------------------------*/
+  /* ============================================================
+     RENDER
+============================================================ */
   return (
-    <ScrollView style={styles.container}>
-      {/* ------------------------------------------ */}
-      {/* HERO — Título, valor atual, meta */}
-      {/* ------------------------------------------ */}
-      <View style={styles.hero}>
-        <Text style={styles.title}>{investment.title}</Text>
+    <Screen>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 140 }}
+      >
+        {/* HEADER */}
+        <View style={styles.headerRow}>
+          <TouchableOpacity onPress={handleBack} style={styles.iconBtn}>
+            <Icon name="chevron-back" size={22} color="#fff" />
+          </TouchableOpacity>
 
-        <Text style={styles.currentValue}>
-          {new Intl.NumberFormat("pt-BR", {
-            style: "currency",
-            currency: "BRL",
-          }).format(investment.currentAmount)}
-        </Text>
+          <Text style={styles.title}>{goal.title}</Text>
 
-        <Text style={styles.target}>
-          Meta:{" "}
-          {new Intl.NumberFormat("pt-BR", {
-            style: "currency",
-            currency: "BRL",
-          }).format(investment.targetAmount)}
-        </Text>
-      </View>
+          <View style={{ width: 32 }} />
+        </View>
 
-      {/* ------------------------------------------ */}
-      {/* SPARKLINE GRANDE */}
-      {/* ------------------------------------------ */}
-      <View style={{ marginTop: 20 }}>
-        <InvestmentSparkline
-          curve={projection?.curveFuture ?? []}
-          width={380}
-          height={120}
-          color="#85C7FF"
-        />
-      </View>
+        {/* META / DÍVIDA */}
+        {isDebt ? (
+          <GoalDebtMainCard
+            debt={goal}
+            showSettleButton
+            onPressPay={() =>
+              router.push(`/goals/details/debt-pay?id=${goal.id}`)
+            }
+            onPressEdit={() =>
+              router.push(`/goals/details/debt-edit?id=${goal.id}`)
+            }
+            onPressSettle={() =>
+              router.push(`/goals/details/debt-settle?id=${goal.id}`)
+            }
+          />
+        ) : !isInvestment ? (
+          <GoalMainCard
+            goal={goal}
+            onPressDetails={() =>
+              router.push(`/goals/details/add?id=${goal.id}`)
+            }
+            onPressEdit={() =>
+              router.push(`/goals/details/edit?id=${goal.id}`)
+            }
+          />
+        ) : null}
 
-      {/* ------------------------------------------ */}
-      {/* CARD VIDRO – PROJEÇÃO */}
-      {/* ------------------------------------------ */}
-      <BlurView intensity={40} tint="dark" style={styles.card}>
-        <Text style={styles.cardTitle}>Projeção</Text>
-
-        <Text style={styles.label}>
-          Aporte mensal estimado:{" "}
-          <Text style={styles.value}>
-            {new Intl.NumberFormat("pt-BR", {
-              style: "currency",
-              currency: "BRL",
-            }).format(aporteMensal)}
-          </Text>
-        </Text>
-
-        {projection?.projectedEndDate && (
-          <Text style={styles.label}>
-            Data projetada:{" "}
-            <Text style={styles.value}>{projection.projectedEndDate}</Text>
-          </Text>
+        {/* INVESTIMENTO */}
+        {isInvestment && (
+          <View style={{ marginTop: 20, paddingHorizontal: 18 }}>
+            <InvestmentMainBlock
+              goal={goal}
+              series={series}
+              onPressAdd={() =>
+                router.push({
+                  pathname: "/goals/investments/contribution",
+                  params: { goalId: goal.id },
+                })
+              }
+              onPressEdit={() =>
+                router.push({
+                  pathname: "/goals/investments/edit",
+                  params: { goalId: goal.id },
+                })
+              }
+            />
+          </View>
         )}
 
-        <Text style={styles.label}>
-          Restante:{" "}
-          <Text style={styles.value}>
-            {new Intl.NumberFormat("pt-BR", {
-              style: "currency",
-              currency: "BRL",
-            }).format(remainingAmount)}
-          </Text>
-        </Text>
-
-        {/* Próxima parcela opcional */}
-        {next && (
-          <Text style={styles.label}>
-            Próximo aporte automático:{" "}
-            <Text style={styles.value}>
-              {new Date(next.date).toLocaleDateString("pt-BR")}
-            </Text>
-          </Text>
+        {/* PARCELAS */}
+        {hasInstallments && (
+          <GoalInstallmentsTimeline installments={goal.installments} />
         )}
-      </BlurView>
 
-      {/* ------------------------------------------ */}
-      {/* INSIGHTS — Placeholder (OpenAI depois) */}
-      {/* ------------------------------------------ */}
-      <BlurView intensity={40} tint="dark" style={styles.card}>
-        <Text style={styles.cardTitle}>Insights do investimento</Text>
+        {/* INSIGHTS */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Insights</Text>
 
-        <Text style={styles.muted}>
-          Em breve: análise inteligente da NÖUS baseada em projeções, perfil e
-          notícias do mercado.
-        </Text>
-      </BlurView>
-
-      {/* ------------------------------------------ */}
-      {/* AÇÕES */}
-      {/* ------------------------------------------ */}
-      <View style={{ marginTop: 20, marginBottom: 60 }}>
-        <TouchableOpacity
-          style={styles.actionBtn}
-          onPress={() => router.push(`/goals/details/add?id=${investment.id}`)}
-        >
-          <Text style={styles.actionText}>Registrar novo aporte</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.actionBtn}
-          onPress={() => router.push(`/goals/details/edit?id=${investment.id}`)}
-        >
-          <Text style={styles.actionText}>Editar investimento</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.actionBtn, { backgroundColor: "rgba(255,80,80,0.22)" }]}
-          onPress={() => router.back()}
-        >
-          <Text style={[styles.actionText, { color: "#ff8a8a" }]}>
-            Voltar
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
+          {!insights || insights.length === 0 ? (
+            <Text style={styles.noInsights}>Nenhum insight disponível.</Text>
+          ) : (
+            insights.map((item, i) => (
+              <GoalsInsightsCard key={i} item={item} />
+            ))
+          )}
+        </View>
+      </ScrollView>
+    </Screen>
   );
 }
 
-/* -------------------------------------------------------------
+/* ============================================================
    STYLES
--------------------------------------------------------------*/
+============================================================ */
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#0B0B0C",
-    paddingHorizontal: 18,
-  },
-
   center: {
     flex: 1,
-    backgroundColor: "#0B0B0C",
     justifyContent: "center",
     alignItems: "center",
   },
 
-  loadingText: {
-    marginTop: 10,
-    color: "rgba(255,255,255,0.6)",
-    fontFamily: brandFont,
+  headerRow: {
+    paddingTop: 10,
+    paddingBottom: 20,
+    paddingHorizontal: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
 
-  hero: {
-    marginTop: 20,
+  iconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   title: {
     fontFamily: brandFont,
-    fontSize: 22,
-    fontWeight: "600",
-    color: "#fff",
-    marginBottom: 10,
-  },
-
-  currentValue: {
-    fontFamily: brandFont,
-    fontSize: 32,
-    fontWeight: "700",
-    color: "#fff",
-  },
-
-  target: {
-    marginTop: 4,
-    fontFamily: brandFont,
-    fontSize: 14,
-    color: "rgba(255,255,255,0.6)",
-  },
-
-  card: {
-    marginTop: 22,
-    padding: 20,
-    borderRadius: 22,
-    backgroundColor: "rgba(255,255,255,0.06)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
-  },
-
-  cardTitle: {
-    fontFamily: brandFont,
-    fontSize: 16,
-    color: "#fff",
-    fontWeight: "600",
-    marginBottom: 10,
-  },
-
-  label: {
-    fontFamily: brandFont,
-    fontSize: 13,
-    color: "rgba(255,255,255,0.6)",
-    marginTop: 6,
-  },
-
-  value: {
+    fontSize: 20,
     color: "#fff",
     fontWeight: "600",
   },
 
-  muted: {
+  section: {
+    marginTop: 30,
+    paddingHorizontal: 18,
+  },
+
+  sectionTitle: {
     fontFamily: brandFont,
-    fontSize: 13,
+    fontSize: 17,
+    fontWeight: "600",
+    color: "#fff",
+    marginBottom: 12,
+  },
+
+  noInsights: {
+    fontFamily: brandFont,
+    fontSize: 15,
     color: "rgba(255,255,255,0.45)",
   },
 
-  actionBtn: {
-    marginTop: 14,
-    paddingVertical: 14,
-    borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.12)",
-    alignItems: "center",
+  notFound: {
+    fontFamily: brandFont,
+    fontSize: 18,
+    color: "#fff",
+    marginBottom: 14,
   },
 
-  actionText: {
-    fontFamily: brandFont,
-    fontSize: 15,
+  backBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 22,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.10)",
+  },
+
+  backText: {
     color: "#fff",
-    fontWeight: "600",
+    fontSize: 16,
+    fontFamily: brandFont,
   },
 });

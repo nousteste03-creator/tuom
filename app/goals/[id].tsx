@@ -1,4 +1,3 @@
-// app/goals/[id].tsx
 import React, { useMemo } from "react";
 import {
   View,
@@ -23,7 +22,7 @@ import Icon from "@/components/ui/Icon";
 import GoalMainCard from "@/components/app/goals/GoalMainCard";
 import GoalDebtMainCard from "@/components/app/goals/GoalDebtMainCard";
 
-// INVESTIMENTO — BLOCO PREMIUM
+// INVESTIMENTOS (bloco premium)
 import InvestmentMainBlock from "@/components/app/investments/InvestmentMainBlock";
 import {
   SeriesMap,
@@ -97,7 +96,7 @@ export default function GoalDetailScreen() {
   const { insights } = useGoalsInsights();
 
   /* ============================================================
-     RELOAD ao focar na tela
+     RELOAD AO FOCAR NA TELA
   ============================================================ */
   useFocusEffect(
     React.useCallback(() => {
@@ -146,7 +145,7 @@ export default function GoalDetailScreen() {
   }
 
   /* ============================================================
-     SÉRIES — somente para INVESTIMENTO
+     SÉRIES DE INVESTIMENTO
   ============================================================ */
   const series: SeriesMap = isInvestment
     ? buildInvestmentSeries(goal)
@@ -164,88 +163,91 @@ export default function GoalDetailScreen() {
   ============================================================ */
   return (
     <Screen>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 140 }}
-      >
-        {/* HEADER */}
-        <View style={styles.headerRow}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
-            <Icon name="chevron-back" size={22} color="#fff" />
-          </TouchableOpacity>
+      {/* IMPORTANTE — ScrollView dentro de um container FLEX */}
+      <View style={{ flex: 1 }}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 140 }}
+        >
+          {/* HEADER */}
+          <View style={styles.headerRow}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
+              <Icon name="chevron-back" size={22} color="#fff" />
+            </TouchableOpacity>
 
-          <Text style={styles.title}>{goal.title}</Text>
+            <Text style={styles.title}>{goal.title}</Text>
 
-          <View style={{ width: 32 }} />
-        </View>
+            <View style={{ width: 32 }} />
+          </View>
 
-        {/* META OU DÍVIDA */}
-        {isDebt ? (
-          <GoalDebtMainCard
-            debt={goal}
-            showSettleButton
-            onPressPay={() =>
-              router.push(`/goals/details/debt-pay?id=${goal.id}`)
-            }
-            onPressEdit={() =>
-              router.push(`/goals/details/debt-edit?id=${goal.id}`)
-            }
-            onPressSettle={() =>
-              router.push(`/goals/details/debt-settle?id=${goal.id}`)
-            }
-          />
-        ) : !isInvestment ? (
-          <GoalMainCard
-            goal={goal}
-            onPressDetails={() =>
-              router.push(`/goals/details/add?id=${goal.id}`)
-            }
-            onPressEdit={() =>
-              router.push(`/goals/details/edit?id=${goal.id}`)
-            }
-          />
-        ) : null}
-
-        {/* INVESTIMENTO — UI PREMIUM */}
-        {isInvestment && (
-          <View style={{ marginTop: 20, paddingHorizontal: 18 }}>
-            <InvestmentMainBlock
-              goal={goal}
-              series={series}
-              onPressAdd={() =>
-                router.push({
-                  pathname: "/goals/investments/contribution",
-                  params: { goalId: goal.id },
-                })
+          {/* META OU DÍVIDA */}
+          {isDebt ? (
+            <GoalDebtMainCard
+              debt={goal}
+              showSettleButton
+              onPressPay={() =>
+                router.push(`/goals/details/debt-pay?id=${goal.id}`)
               }
               onPressEdit={() =>
-                router.push({
-                  pathname: "/goals/investments/edit",
-                  params: { goalId: goal.id },
-                })
+                router.push(`/goals/details/debt-edit?id=${goal.id}`)
+              }
+              onPressSettle={() =>
+                router.push(`/goals/details/debt-settle?id=${goal.id}`)
               }
             />
-          </View>
-        )}
+          ) : !isInvestment ? (
+            <GoalMainCard
+              goal={goal}
+              onPressDetails={() =>
+                router.push(`/goals/details/add?id=${goal.id}`)
+              }
+              onPressEdit={() =>
+                router.push(`/goals/details/edit?id=${goal.id}`)
+              }
+            />
+          ) : null}
 
-        {/* PARCELAS / EVENTOS */}
-        {hasInstallments && (
-          <GoalInstallmentsTimeline installments={goal.installments} />
-        )}
-
-        {/* INSIGHTS */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Insights</Text>
-
-          {!insights || insights.length === 0 ? (
-            <Text style={styles.noInsights}>Nenhum insight disponível.</Text>
-          ) : (
-            insights.map((item, i) => (
-              <GoalsInsightsCard key={i} item={item} />
-            ))
+          {/* INVESTIMENTO UI PREMIUM */}
+          {isInvestment && (
+            <View style={{ marginTop: 20, paddingHorizontal: 18 }}>
+              <InvestmentMainBlock
+                goal={goal}
+                series={series}
+                onPressAdd={() =>
+                  router.push({
+                    pathname: "/goals/investments/contribution",
+                    params: { goalId: goal.id },
+                  })
+                }
+                onPressEdit={() =>
+                  router.push({
+                    pathname: "/goals/investments/edit",
+                    params: { goalId: goal.id },
+                  })
+                }
+              />
+            </View>
           )}
-        </View>
-      </ScrollView>
+
+          {/* PARCELAS */}
+          {hasInstallments && (
+            <GoalInstallmentsTimeline installments={goal.installments} />
+          )}
+
+          {/* INSIGHTS */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Insights</Text>
+
+            {!insights || insights.length === 0 ? (
+              <Text style={styles.noInsights}>Nenhum insight disponível.</Text>
+            ) : (
+              insights.map((item, i) => (
+                <GoalsInsightsCard key={i} item={item} />
+              ))
+            )}
+          </View>
+        </ScrollView>
+      </View>
     </Screen>
   );
 }

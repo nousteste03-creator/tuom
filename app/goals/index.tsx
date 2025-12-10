@@ -110,17 +110,14 @@ export default function GoalsIndexScreen() {
      NAVIGATION
   ─────────────────────────────────────────────── */
 
-  // Detalhe padrão da meta/dívida/investimento
   const openDetail = (id: string) => router.push(`/goals/${id}`);
 
-  // Fluxos antigos de contribuição/edição de meta – mantidos
   const openContribution = (id: string) =>
     router.push(`/goals/details/add?id=${id}`);
 
   const openEdit = (id: string) =>
     router.push(`/goals/details/edit?id=${id}`);
 
-  // Dívidas
   const openDebtPay = (id: string) =>
     router.push(`/goals/details/debt-pay?id=${id}`);
 
@@ -143,7 +140,6 @@ export default function GoalsIndexScreen() {
         ? "investment"
         : "income";
 
-    // income nunca passa por paywall
     if (type === "income") {
       router.push(`/goals/create?type=${type}`);
       return;
@@ -161,10 +157,12 @@ export default function GoalsIndexScreen() {
   /* ───────────────────────────────────────────────
      UI
   ─────────────────────────────────────────────── */
+
   return (
-    <>
+    <View style={styles.container}>
       <ScrollView
-        style={styles.container}
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingBottom: 40 }}
         refreshControl={
           <RefreshControl tintColor="#fff" refreshing={false} onRefresh={reload} />
         }
@@ -283,20 +281,23 @@ export default function GoalsIndexScreen() {
         </View>
       </ScrollView>
 
-      <ModalPremiumPaywall
-        visible={showPaywall}
-        blockedType={blockedType}
-        onClose={() => {
-          setShowPaywall(false);
-          setBlockedType(null);
-        }}
-        onUpgrade={() => {
-          setShowPaywall(false);
-          setBlockedType(null);
-          router.push("/premium");
-        }}
-      />
-    </>
+      {/* PAYWALL FORA DO SCROLLVIEW */}
+      {showPaywall && (
+        <ModalPremiumPaywall
+          visible={showPaywall}
+          blockedType={blockedType}
+          onClose={() => {
+            setShowPaywall(false);
+            setBlockedType(null);
+          }}
+          onUpgrade={() => {
+            setShowPaywall(false);
+            setBlockedType(null);
+            router.push("/premium");
+          }}
+        />
+      )}
+    </View>
   );
 }
 

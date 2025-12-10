@@ -1,33 +1,56 @@
+project_id = "kurselrfgbnyhnmrlltq"
+
+# ============================================================
+# FUNCTIONS EXISTENTES
+# ============================================================
 
 [functions.news-clean]
 enabled = true
 verify_jwt = true
 import_map = "./functions/news-clean/deno.json"
-# Uncomment to specify a custom file path to the entrypoint.
-# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
 entrypoint = "./functions/news-clean/index.ts"
-# Specifies static files to be bundled with the function. Supports glob patterns.
-# For example, if you want to serve static HTML pages in your function:
-# static_files = [ "./functions/news-clean/*.html" ]
 
 [functions.insights_daily]
 enabled = true
 verify_jwt = true
 import_map = "./functions/insights_daily/deno.json"
-# Uncomment to specify a custom file path to the entrypoint.
-# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
 entrypoint = "./functions/insights_daily/index.ts"
-# Specifies static files to be bundled with the function. Supports glob patterns.
-# For example, if you want to serve static HTML pages in your function:
-# static_files = [ "./functions/insights_daily/*.html" ]
 
 [functions.insights]
 enabled = true
 verify_jwt = true
 import_map = "./functions/insights/deno.json"
-# Uncomment to specify a custom file path to the entrypoint.
-# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
 entrypoint = "./functions/insights/index.ts"
-# Specifies static files to be bundled with the function. Supports glob patterns.
-# For example, if you want to serve static HTML pages in your function:
-# static_files = [ "./functions/insights/*.html" ]
+
+
+# ============================================================
+# NOVAS FUNÇÕES DO INVEST+
+# ============================================================
+
+# Atualização diária das taxas — CRON será criado no PAINEL DO SUPABASE
+[functions.cron-update-market-rates]
+enabled = true
+verify_jwt = false
+import_map = "./functions/cron/update-market-rates/deno.json"
+entrypoint = "./functions/cron/update-market-rates/index.ts"
+
+# Insights gratuitos (DeepSeek)
+[functions.invest-insights-free]
+enabled = true
+verify_jwt = false
+import_map = "./functions/invest-insights-free/deno.json"
+entrypoint = "./functions/invest-insights-free/index.ts"
+
+# Insights premium (GPT-4o-mini)
+[functions.invest-insights-premium]
+enabled = true
+verify_jwt = true
+import_map = "./functions/invest-insights-premium/deno.json"
+entrypoint = "./functions/invest-insights-premium/index.ts"
+
+# Cálculo da projeção de investimento
+[functions.invest-projection]
+enabled = true
+verify_jwt = false
+import_map = "./functions/invest-projection/deno.json"
+entrypoint = "./functions/invest-projection/index.ts"

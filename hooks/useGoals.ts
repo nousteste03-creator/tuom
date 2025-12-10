@@ -696,37 +696,42 @@ export function useGoals() {
   );
 
   /* ============================================================
-     UPDATE GOAL
-  ============================================================ */
+   UPDATE GOAL (CORRIGIDO)
+============================================================ */
 
-  const updateGoal = useCallback(
-    async (goalId: string, patch: any) => {
-      const updates: any = {};
+const updateGoal = useCallback(
+  async (goalId: string, patch: any) => {
+    const updates: any = {};
 
-      if (patch.title !== undefined) updates.title = patch.title;
-      if (patch.targetAmount !== undefined)
-        updates.target_amount = patch.targetAmount;
-      if (patch.currentAmount !== undefined)
-        updates.current_amount = patch.currentAmount;
-      if (patch.startDate !== undefined)
-        updates.start_date = patch.startDate;
-      if (patch.endDate !== undefined) updates.end_date = patch.endDate;
-      if (patch.status !== undefined) updates.status = patch.status;
-      if (patch.autoRuleMonthly !== undefined)
-        updates.auto_rule_monthly = patch.autoRuleMonthly;
-      if (patch.debtStyle !== undefined)
-        updates.debt_style = patch.debtStyle ?? null;
-      if (patch.notes !== undefined) updates.notes = patch.notes;
-      if (patch.isPrimary !== undefined)
-        updates.is_primary = patch.isPrimary;
+    if (patch.title !== undefined) updates.title = patch.title;
+    if (patch.targetAmount !== undefined)
+      updates.target_amount = patch.targetAmount;
+    if (patch.currentAmount !== undefined)
+      updates.current_amount = patch.currentAmount;
+    if (patch.startDate !== undefined)
+      updates.start_date = patch.startDate;
 
-      if (Object.keys(updates).length === 0) return;
+    // PRAZO / DEADLINE — CORRETO
+    if (patch.endDate !== undefined && patch.endDate !== null && patch.endDate !== "") {
+      updates.end_date = patch.endDate; // string YYYY-MM-DD já funciona
+    }
 
-      await supabase.from("goals").update(updates).eq("id", goalId);
-      await reload();
-    },
-    [reload]
-  );
+    if (patch.status !== undefined) updates.status = patch.status;
+    if (patch.autoRuleMonthly !== undefined)
+      updates.auto_rule_monthly = patch.autoRuleMonthly;
+    if (patch.debtStyle !== undefined)
+      updates.debt_style = patch.debtStyle ?? null;
+    if (patch.notes !== undefined) updates.notes = patch.notes;
+    if (patch.isPrimary !== undefined)
+      updates.is_primary = patch.isPrimary;
+
+    if (Object.keys(updates).length === 0) return;
+
+    await supabase.from("goals").update(updates).eq("id", goalId);
+    await reload();
+  },
+  [reload]
+);
 
   /* ============================================================
      SET PRIMARY
