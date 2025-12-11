@@ -69,7 +69,7 @@ export type GoalWithStats = {
     projectedEndDate: string | null;
     missedContribution: boolean;
     curveFuture: SeriesPoint[];
-    series?: SeriesMap; // <- NOVO
+    series?: SeriesMap;
   };
 };
 
@@ -211,7 +211,6 @@ function computeGoalStats(
     aheadOrBehindMonths,
   };
 }
-
 /* ============================================================
    Helper — construir séries de investimento
 ============================================================ */
@@ -227,11 +226,9 @@ function buildInvestmentSeries(
     value: Number(currentAmount ?? 0),
   };
 
-  // curva completa = ponto atual + projeções futuras
   const fullCurve: SeriesPoint[] = [currentPoint, ...curveFuture];
 
   const parse = (d: string) => new Date(d);
-
   const ensure = (arr: SeriesPoint[]): SeriesPoint[] =>
     arr.length ? arr : [currentPoint];
 
@@ -271,6 +268,7 @@ function computeInvestmentProjection(goal: GoalWithStats) {
   const today = now.getDate();
 
   const remaining = goal.remainingAmount;
+
   if (remaining <= 0) {
     return {
       monthly,
@@ -301,6 +299,7 @@ function computeInvestmentProjection(goal: GoalWithStats) {
   for (let i = 0; i < (monthsToGoal ?? 0); i++) {
     cursor = new Date(cursor);
     cursor.setMonth(cursor.getMonth() + 1);
+
     accumulated += monthly;
 
     curveFuture.push({
@@ -368,7 +367,7 @@ async function generateInstallments(goalId: string, input: any, userId: string) 
 let isReloading = false;
 
 /* ============================================================
-   Hook principal
+   Hook principal — começo
 ============================================================ */
 
 export function useGoals() {
@@ -380,8 +379,8 @@ export function useGoals() {
   /** ----------------------------
    *  AJUSTE DO PLANO (FREE/PRO)
    * ----------------------------
-   * Leitura segura — NÃO cria instâncias duplicadas,
-   * NÃO força remount e NÃO conflita com o plano do usuário.
+   * Leitura segura — NÃO cria remount,
+   * NÃO causa loops, NÃO invalida createGoal().
    */
   const userPlan = useUserPlan();
   const isPro = userPlan?.isPro ?? false;
@@ -390,6 +389,7 @@ export function useGoals() {
 
   const reload = useCallback(async () => {
     if (isReloading) return;
+
     isReloading = true;
     setLoading(true);
 
@@ -431,7 +431,6 @@ export function useGoals() {
   useEffect(() => {
     reload();
   }, [reload]);
-
   /* ------------------ RECONCILE ------------------ */
 
   const lastReconcileSnapshot = useRef<string>("");
@@ -463,6 +462,8 @@ export function useGoals() {
           if (paid <= 0) continue;
 
           const current = Number(g.current_amount || 0);
+
+          // se o total pago ultrapassa o current_amount salvo → atualiza
           if (paid > current) {
             await supabase
               .from("goals")
@@ -523,6 +524,8 @@ export function useGoals() {
     });
   }, [rawGoals, installmentsByGoalId]);
 
+  /* ------------------ FILTROS ------------------ */
+
   const goals = useMemo(
     () => allGoals.filter((g) => g.type === "goal"),
     [allGoals]
@@ -538,18 +541,22 @@ export function useGoals() {
     [allGoals]
   );
 
+  /* ------------------ PRIMARY GOAL ------------------ */
+
   const primaryGoal = useMemo(() => {
     const explicit = allGoals.find((g) => g.isPrimary);
     if (explicit) return explicit;
+
     return goals.find((g) => g.status === "active") ?? null;
   }, [allGoals, goals]);
 
   /* ============================================================
-     FREE LIMIT CHECK (USANDO isPro AJUSTADO)
+     FREE LIMIT CHECK (corrigido / sem loops)
   ============================================================ */
 
   const activeCount = goals.filter((g) => g.status === "active").length;
   const canCreateNewGoal = isPro || activeCount < 1;
+
   const cannotCreateReason =
     !canCreateNewGoal && !isPro ? "free_limit" : undefined;
 
@@ -628,7 +635,7 @@ export function useGoals() {
   );
 
   /* ============================================================
-     CREATE GOAL — AJUSTADO (SEM isPro NA DEPENDÊNCIA)
+     CREATE GOAL — 100% CORRIGIDO (sem dependência do isPro)
   ============================================================ */
 
   const createGoal = useCallback(
@@ -692,47 +699,48 @@ export function useGoals() {
 
       return goalId;
     },
-    [reload] // FIX PRINCIPAL — remove dependência com isPro
+    [reload] // FIX PRINCIPAL
   );
 
   /* ============================================================
-   UPDATE GOAL (CORRIGIDO)
-============================================================ */
+     UPDATE GOAL (corrigido)
+  ============================================================ */
 
-const updateGoal = useCallback(
-  async (goalId: string, patch: any) => {
-    const updates: any = {};
+  const updateGoal = useCallback(
+    async (goalId: string, patch: any) => {
+      const updates: any = {};
 
-    if (patch.title !== undefined) updates.title = patch.title;
-    if (patch.targetAmount !== undefined)
-      updates.target_amount = patch.targetAmount;
-    if (patch.currentAmount !== undefined)
-      updates.current_amount = patch.currentAmount;
-    if (patch.startDate !== undefined)
-      updates.start_date = patch.startDate;
+      if (patch.title !== undefined) updates.title = patch.title;
+      if (patch.targetAmount !== undefined)
+        updates.target_amount = patch.targetAmount;
+      if (patch.currentAmount !== undefined)
+        updates.current_amount = patch.currentAmount;
+      if (patch.startDate !== undefined) updates.start_date = patch.startDate;
 
-    // PRAZO / DEADLINE — CORRETO
-    if (patch.endDate !== undefined && patch.endDate !== null && patch.endDate !== "") {
-      updates.end_date = patch.endDate; // string YYYY-MM-DD já funciona
-    }
+      // DEADLINE — manter exatamente o que o usuário enviou
+      if (
+        patch.endDate !== undefined &&
+        patch.endDate !== null &&
+        patch.endDate !== ""
+      ) {
+        updates.end_date = patch.endDate;
+      }
 
-    if (patch.status !== undefined) updates.status = patch.status;
-    if (patch.autoRuleMonthly !== undefined)
-      updates.auto_rule_monthly = patch.autoRuleMonthly;
-    if (patch.debtStyle !== undefined)
-      updates.debt_style = patch.debtStyle ?? null;
-    if (patch.notes !== undefined) updates.notes = patch.notes;
-    if (patch.isPrimary !== undefined)
-      updates.is_primary = patch.isPrimary;
+      if (patch.status !== undefined) updates.status = patch.status;
+      if (patch.autoRuleMonthly !== undefined)
+        updates.auto_rule_monthly = patch.autoRuleMonthly;
+      if (patch.debtStyle !== undefined)
+        updates.debt_style = patch.debtStyle ?? null;
+      if (patch.notes !== undefined) updates.notes = patch.notes;
+      if (patch.isPrimary !== undefined) updates.is_primary = patch.isPrimary;
 
-    if (Object.keys(updates).length === 0) return;
+      if (Object.keys(updates).length === 0) return;
 
-    await supabase.from("goals").update(updates).eq("id", goalId);
-    await reload();
-  },
-  [reload]
-);
-
+      await supabase.from("goals").update(updates).eq("id", goalId);
+      await reload();
+    },
+    [reload]
+  );
   /* ============================================================
      SET PRIMARY
   ============================================================ */

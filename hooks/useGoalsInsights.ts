@@ -1,118 +1,215 @@
-import { useMemo } from "react";
-import { useGoals, GoalWithStats } from "@/hooks/useGoals";
-import { useIncomeSources, IncomeSource } from "@/hooks/useIncomeSources";
+// hooks/useGoalsInsights.ts
+import { useEffect, useState, useMemo } from "react";
+import { supabase } from "@/lib/supabase";
+import { useGoals } from "@/hooks/useGoals";
+import { useIncomeSources } from "@/hooks/useIncomeSources";
+import { useUserPlan } from "@/hooks/useUserPlan";
 
-export function useGoalsInsights() {
+/**
+ * Hook oficial de insights por categoria (goals, debts, investments, income)
+ * Agora com:
+ * - JWT enviado para a Edge Function
+ * - Logs completos
+ * - Fallback local
+ */
+export function useGoalsInsights(
+  tab: "goals" | "debts" | "investments" | "income"
+) {
   const { goals, debts, investments } = useGoals();
   const { incomeSources } = useIncomeSources();
+  const { isPro } = useUserPlan();
 
-  return useMemo(() => {
-    const insights = [];
+  const [loading, setLoading] = useState(true);
+  const [remoteInsights, setRemoteInsights] = useState<any[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
-    /* ---------------------------------------------------------
-       0. Segurança — caso os hooks ainda estejam carregando
-    --------------------------------------------------------- */
-    if (!goals || !debts || !investments || !incomeSources) {
-      return { insights: [], loading: true };
-    }
+  /* ---------------------------------------------------------
+   * 1) Escolher qual função será chamada
+   --------------------------------------------------------- */
+  const fnName = useMemo(() => {
+    const tier = isPro ? "premium" : "free";
 
-    /* ---------------------------------------------------------
-       1. Meta indo bem (progress)
-    --------------------------------------------------------- */
-    for (const g of goals) {
-      if (g.progressPercent >= 70) {
-        insights.push({
-          id: "progress-" + g.id,
-          type: "progress",
-          severity: "positive",
-          title: `Sua meta "${g.title}" está indo muito bem`,
-          message: `Você já alcançou ${g.progressPercent.toFixed(
-            0
-          )}% da meta. Continue nesse ritmo.`,
+    if (tab === "goals") return `goals-insights-${tier}`;
+    if (tab === "debts") return `debts-insights-${tier}`;
+    if (tab === "investments") return `investment-goal-insights-${tier}`;
+    if (tab === "income") return `income-insights-${tier}`;
+
+    return null;
+  }, [tab, isPro]);
+
+  console.log("------------------------------------------------------");
+  console.log("🔍 INSIGHTS - ABA:", tab);
+  console.log("🔍 IS PRO?", isPro);
+  console.log("🔍 Função selecionada:", fnName);
+  console.log("------------------------------------------------------");
+
+  /* ---------------------------------------------------------
+   * 2) Criar payload unificado enviado às funções
+   --------------------------------------------------------- */
+  const payload = useMemo(
+    () => ({
+      goals,
+      debts,
+      investments,
+      incomeSources,
+    }),
+    [goals, debts, investments, incomeSources]
+  );
+
+  console.log("📦 PAYLOAD:", {
+    goals: goals.length,
+    debts: debts.length,
+    investments: investments.length,
+    incomeSources: incomeSources.length,
+  });
+
+  /* ---------------------------------------------------------
+   * 3) Chamada oficial da Edge Function
+   * Agora com envio do JWT para respeitar RLS e Policies
+   --------------------------------------------------------- */
+  useEffect(() => {
+    if (!fnName) return;
+
+    if (!goals || !debts || !investments || !incomeSources) return;
+
+    async function load() {
+      try {
+        setLoading(true);
+        setRemoteInsights([]);
+        setError(null);
+
+        console.log("🌐 Chamando Edge Function:", fnName);
+
+        // 1) Pegar o JWT do usuário
+        const { data: sessionData } = await supabase.auth.getSession();
+        const token = sessionData?.session?.access_token;
+
+        if (!token) {
+          console.log("❌ SEM TOKEN — usuário não autenticado");
+          setError("Usuário não autenticado");
+          return;
+        }
+
+        // 2) Chamar a função com JWT
+        const { data, error } = await supabase.functions.invoke(fnName, {
+          body: payload,
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         });
+
+        if (error) {
+          console.log("❌ ERRO DA EDGE FUNCTION:", error);
+          throw error;
+        }
+
+        console.log("📥 RESPOSTA BRUTA:", data);
+
+        const items = data?.insights ?? [];
+
+        console.log("📥 INSIGHTS REMOTOS:", items);
+
+        setRemoteInsights(items);
+      } catch (err) {
+        console.log("🔥 ERRO NO HOOK useGoalsInsights:", err);
+        setError("IA indisponível");
+        setRemoteInsights([]);
+      } finally {
+        setLoading(false);
       }
     }
 
-    /* ---------------------------------------------------------
-       2. Meta atrasada (delay)
-    --------------------------------------------------------- */
-    for (const g of goals) {
-      if (g.aheadOrBehindMonths && g.aheadOrBehindMonths < -1) {
-        insights.push({
-          id: "delay-" + g.id,
-          type: "delay",
-          severity: "warning",
-          title: `"${g.title}" está ficando para trás`,
-          message: `Você está cerca de ${Math.abs(
-            g.aheadOrBehindMonths
-          ).toFixed(1)} meses atrás do plano.`,
-        });
+    load();
+  }, [fnName, payload]);
+
+  /* ---------------------------------------------------------
+   * 4) Fallback local para quando a IA não retornar nada
+   --------------------------------------------------------- */
+  const fallback = useMemo(() => {
+    const out: any[] = [];
+
+    if (tab === "goals") {
+      for (const g of goals) {
+        if (g.progressPercent >= 70) {
+          out.push({
+            id: "fb-goal-" + g.id,
+            type: "goals",
+            severity: "positive",
+            title: `Meta "${g.title}" está indo bem`,
+            message: `Você já atingiu ${g.progressPercent.toFixed(0)}% da meta.`,
+          });
+        }
       }
     }
 
-    /* ---------------------------------------------------------
-       3. Dívidas com parcelas altas
-    --------------------------------------------------------- */
-    for (const d of debts) {
-      const next = d.installments?.find((i) => i.status !== "paid");
+    if (tab === "debts") {
+      for (const d of debts) {
+        const next = d.installments?.find((i) => i.status !== "paid");
+        if (next && next.amount > d.targetAmount * 0.2) {
+          out.push({
+            id: "fb-debt-" + d.id,
+            type: "debts",
+            severity: "danger",
+            title: "Parcela alta encontrada",
+            message: `A próxima parcela é de R$${next.amount.toFixed(2)}.`,
+          });
+        }
+      }
+    }
 
-      if (!next) continue;
+    if (tab === "investments") {
+      for (const inv of investments) {
+        if (inv.projection?.monthsToGoal <= 3) {
+          out.push({
+            id: "fb-invest-" + inv.id,
+            type: "investments",
+            severity: "positive",
+            title: "Investimento perto da meta",
+            message: `Faltam ${inv.projection.monthsToGoal} meses.`,
+          });
+        }
+      }
+    }
 
-      if (next.amount > d.targetAmount * 0.2) {
-        insights.push({
-          id: "debt-" + d.id,
-          type: "debts",
+    if (tab === "income") {
+      if (incomeSources.length === 0) {
+        out.push({
+          id: "fb-inc-0",
+          type: "income",
           severity: "danger",
-          title: `Parcela alta na dívida "${d.title}"`,
-          message: `A próxima parcela de R$${next.amount.toFixed(
-            2
-          )} é significativa. Considere ajustar seu fluxo mensal.`,
+          title: "Nenhuma renda cadastrada",
+          message: "Adicione sua renda para gerar projeções reais.",
+        });
+      }
+
+      if (incomeSources.length === 1) {
+        out.push({
+          id: "fb-inc-1",
+          type: "income",
+          severity: "neutral",
+          title: "Renda concentrada",
+          message: "Depender de uma única fonte aumenta o risco financeiro.",
         });
       }
     }
 
-    /* ---------------------------------------------------------
-       4. Investimento com grande potencial (próximo de bater meta)
-    --------------------------------------------------------- */
-    for (const inv of investments) {
-      if (inv.projection && inv.projection.monthsToGoal <= 3) {
-        insights.push({
-          id: "invest-" + inv.id,
-          type: "investments",
-          severity: "positive",
-          title: `Seu investimento "${inv.title}" está perto de completar`,
-          message: `Faltam apenas ${inv.projection.monthsToGoal} meses para atingir o objetivo.`,
-        });
-      }
-    }
+    console.log("📦 FALLBACK LOCAL:", out);
 
-    /* ---------------------------------------------------------
-       5. Renda concentrada (alerta)
-    --------------------------------------------------------- */
-    if (incomeSources.length === 1) {
-      insights.push({
-        id: "income-1",
-        type: "income",
-        severity: "neutral",
-        title: "Sua renda está concentrada em uma única fonte",
-        message: "Diversificação tende a trazer estabilidade financeira.",
-      });
-    }
+    return out;
+  }, [tab, goals, debts, investments, incomeSources]);
 
-    /* ---------------------------------------------------------
-       6. Nenhuma renda cadastrada (erro)
-    --------------------------------------------------------- */
-    if (incomeSources.length === 0) {
-      insights.push({
-        id: "income-0",
-        type: "income",
-        severity: "danger",
-        title: "Nenhuma fonte de renda cadastrada",
-        message:
-          "Adicione sua renda para gerar projeções realistas e insights mais precisos.",
-      });
-    }
+  /* ---------------------------------------------------------
+   * 5) Resultado final exibido na UI
+   --------------------------------------------------------- */
+  const finalInsights =
+    remoteInsights.length > 0 ? remoteInsights : fallback;
 
-    return { insights, loading: false };
-  }, [goals, debts, investments, incomeSources]);
+  console.log("📌 INSIGHTS FINAIS ENVIADOS PARA A UI:", finalInsights);
+  console.log("------------------------------------------------------");
+
+  return {
+    insights: finalInsights,
+    loading,
+    error,
+  };
 }

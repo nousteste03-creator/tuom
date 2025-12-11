@@ -16,7 +16,7 @@ const brandFont = Platform.select({
   default: "System",
 });
 
-type Insight = {
+export type Insight = {
   id: string;
   type: string;
   severity: "positive" | "warning" | "danger" | "neutral";
@@ -54,16 +54,18 @@ export default function GoalsInsightsCard({
   }, []);
 
   /* ------------------------------------------------------------
-     PAYWALL
+     PAYWALL — usuário FREE
   ------------------------------------------------------------ */
   if (!isPro) {
     return (
       <TouchableOpacity onPress={onPressUpgrade} activeOpacity={0.9}>
         <BlurView intensity={45} tint="dark" style={styles.lockedCard}>
           <Text style={styles.lockedTitle}>Insights Premium</Text>
+
           <Text style={styles.lockedDesc}>
             Veja análises avançadas sobre suas metas, dívidas e investimentos.
           </Text>
+
           <Text style={styles.lockedCTA}>Desbloquear PRO ›</Text>
         </BlurView>
       </TouchableOpacity>
@@ -71,7 +73,7 @@ export default function GoalsInsightsCard({
   }
 
   /* ------------------------------------------------------------
-     CARD DE INSIGHT PREMIUM
+     INSIGHT PREMIUM — usuário PRO
   ------------------------------------------------------------ */
   return (
     <Animated.View
@@ -81,6 +83,7 @@ export default function GoalsInsightsCard({
       }}
     >
       <BlurView intensity={35} tint="dark" style={styles.card}>
+
         {/* HEADER */}
         <View style={styles.headerRow}>
           <View
@@ -92,6 +95,7 @@ export default function GoalsInsightsCard({
               insight.severity === "neutral" && { backgroundColor: "#8e8e93" },
             ]}
           />
+
           <Text style={styles.headerText}>Insight Premium</Text>
         </View>
 
@@ -124,12 +128,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 10,
   },
+
   iconDot: {
     width: 10,
     height: 10,
     borderRadius: 5,
     marginRight: 8,
   },
+
   headerText: {
     fontFamily: brandFont,
     fontSize: 13,
@@ -143,6 +149,7 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     marginBottom: 6,
   },
+
   desc: {
     fontFamily: brandFont,
     fontSize: 13,
@@ -150,7 +157,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 
-  /* BLOCO PRO BLOQUEADO */
+  /* FREE — Card bloqueado */
   lockedCard: {
     marginHorizontal: 18,
     marginTop: 18,
@@ -160,18 +167,21 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.08)",
   },
+
   lockedTitle: {
     fontFamily: brandFont,
     fontSize: 15,
     fontWeight: "600",
     color: "#FFFFFF",
   },
+
   lockedDesc: {
     fontFamily: brandFont,
     fontSize: 13,
     color: "rgba(255,255,255,0.6)",
     marginTop: 6,
   },
+
   lockedCTA: {
     marginTop: 10,
     fontFamily: brandFont,

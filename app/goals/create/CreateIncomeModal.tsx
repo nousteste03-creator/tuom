@@ -1,3 +1,4 @@
+// app/goals/create/CreateIncomeModal.tsx
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import {
   View,
@@ -12,6 +13,53 @@ import {
 } from "react-native";
 import { BlurView } from "expo-blur";
 import { useIncomeSources } from "@/hooks/useIncomeSources";
+import { useUserPlan } from "@/hooks/useUserPlan";
+
+/* ---------------------------------------------------------
+   ENV – chamada às Edge Functions de insights
+----------------------------------------------------------*/
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+
+async function callIncomeInsightsFunction(
+  endpoint: "income-insights-free" | "income-insights-premium",
+  payload: any
+) {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    throw new Error(
+      "[CreateIncomeModal] Variáveis EXPO_PUBLIC_SUPABASE_URL / EXPO_PUBLIC_SUPABASE_ANON_KEY não configuradas."
+    );
+  }
+
+  const url = `${SUPABASE_URL}/functions/v1/${endpoint}`;
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `[CreateIncomeModal] Erro HTTP em ${endpoint}: ${res.status} – ${text}`
+    );
+  }
+
+  let json: any = null;
+  try {
+    json = await res.json();
+  } catch {
+    throw new Error(
+      `[CreateIncomeModal] Resposta inválida de ${endpoint} (não é JSON).`
+    );
+  }
+
+  return json;
+}
 
 const brandFont = Platform.select({
   ios: "SF Pro Display",
@@ -72,7 +120,7 @@ function parseAmountInput(raw: string): number {
 
 /* ---------------------------------------------------------
    Painel Inteligente (Step 3 / 4)
-   — Hoje heurístico local; depois plugamos Supabase + IA
+   Híbrido: heurística local + IA (free/premium)
 ----------------------------------------------------------*/
 
 type IncomeInsightPanelProps = {
@@ -80,6 +128,12 @@ type IncomeInsightPanelProps = {
   frequency: string;
   amountNumber: number;
   normalizedNextDate: string | null;
+  /** Texto vindo da IA (free/premium) ou null → usa heurística local */
+  aiText?: string | null;
+  /** Fonte do texto: local, free, premium ou error (para debug futuro) */
+  aiSource?: "local" | "free" | "premium" | "error";
+  /** Estado de loading enquanto IA está respondendo */
+  loading?: boolean;
 };
 
 function IncomeInsightPanel({
@@ -87,6 +141,9 @@ function IncomeInsightPanel({
   frequency,
   amountNumber,
   normalizedNextDate,
+  aiText,
+  aiSource,
+  loading,
 }: IncomeInsightPanelProps) {
   // renda mensal estimada
   const monthly = useMemo(() => {
@@ -109,7 +166,11 @@ function IncomeInsightPanel({
 
   // dias até o próximo pagamento
   const { daysUntil, prettyDate } = useMemo(() => {
-    if (!normalizedNextDate) return { daysUntil: null as number | null, prettyDate: null as string | null };
+    if (!normalizedNextDate)
+      return {
+        daysUntil: null as number | null,
+        prettyDate: null as string | null,
+      };
 
     try {
       const today = new Date();
@@ -122,12 +183,15 @@ function IncomeInsightPanel({
 
       return { daysUntil: diffDays, prettyDate: pretty };
     } catch {
-      return { daysUntil: null as number | null, prettyDate: normalizedNextDate };
+      return {
+        daysUntil: null as number | null,
+        prettyDate: normalizedNextDate,
+      };
     }
   }, [normalizedNextDate]);
 
-  // texto heurístico
-  const insightText = useMemo(() => {
+  // texto heurístico local (backup)
+  const localInsightText = useMemo(() => {
     if (!monthly) {
       return "Assim que você definir o valor desta renda, a NÖUS passa a projetar o impacto dela no seu mês.";
     }
@@ -168,6 +232,21 @@ function IncomeInsightPanel({
     return `Pagamento previsto para ${prettyDate} (em cerca de ${daysUntil} dias).`;
   }, [prettyDate, daysUntil]);
 
+  // texto final mostrado no bloco "Como a NÖUS enxerga esta renda"
+  const finalInsightText = useMemo(() => {
+    if (loading) {
+      return "Gerando uma leitura da PILA com base nos seus dados...";
+    }
+
+    if (aiText && aiText.trim().length > 0) {
+      // texto vindo da IA (free/premium), já tratado no Edge Function
+      return aiText;
+    }
+
+    // fallback para heurística local
+    return `${localInsightText} No futuro, a PILA poderá refinar este texto usando OpenAI — sem alterar os cálculos reais.`;
+  }, [aiText, loading, localInsightText]);
+
   return (
     <View style={styles.panelContainer}>
       <Text style={styles.panelTitle}>Visão desta renda</Text>
@@ -206,19 +285,17 @@ function IncomeInsightPanel({
       </Text>
       <Text style={styles.panelAIText}>{dateText}</Text>
 
-      {/* insight da Pila (heurístico local) */}
+      {/* insight da PILA (híbrido: IA + heurística) */}
       <Text style={[styles.panelLabel, { marginTop: 16 }]}>
         Como a NÖUS enxerga esta renda
       </Text>
-      <Text style={styles.panelAIText}>
-        {insightText} No futuro, a PILA poderá refinar este texto usando OpenAI — sem
-        alterar os cálculos reais.
-      </Text>
+      <Text style={styles.panelAIText}>{finalInsightText}</Text>
 
       {/* descrição final fixa */}
       <Text style={styles.panelDescription}>
-        Esta projeção é baseada apenas no valor, frequência e data que você informou.
-        Os cálculos são locais; a IA entra apenas para deixar a explicação mais clara.
+        Esta projeção é baseada apenas no valor, frequência e data que você
+        informou. Os cálculos são locais; a IA entra apenas para deixar a
+        explicação mais clara.
       </Text>
     </View>
   );
@@ -237,6 +314,9 @@ const TOTAL_STEPS = 4;
 
 export default function CreateIncomeModal({ visible, onClose }: Props) {
   const { createIncomeSource, reload } = useIncomeSources();
+  const { plan } = useUserPlan(); // FREE / PRO / etc.
+  const isPro =
+    plan === "PRO" || plan === "PREMIUM" || plan === "Premium" || plan === "pro";
 
   const fade = useRef(new Animated.Value(0)).current;
   const slide = useRef(new Animated.Value(20)).current;
@@ -244,9 +324,13 @@ export default function CreateIncomeModal({ visible, onClose }: Props) {
   const [step, setStep] = useState(0);
 
   const [name, setName] = useState("");
-  const [incomeType, setIncomeType] = useState<"salary" | "freelance" | "commission" | "variable" | "other">("salary");
+  const [incomeType, setIncomeType] = useState<
+    "salary" | "freelance" | "commission" | "variable" | "other"
+  >("salary");
   const [amount, setAmount] = useState("");
-  const [frequency, setFrequency] = useState<"monthly" | "weekly" | "biweekly" | "once">("monthly");
+  const [frequency, setFrequency] = useState<
+    "monthly" | "weekly" | "biweekly" | "once"
+  >("monthly");
   const [nextDate, setNextDate] = useState("");
 
   const [errors, setErrors] = useState<{
@@ -259,13 +343,23 @@ export default function CreateIncomeModal({ visible, onClose }: Props) {
   const panelFade = useRef(new Animated.Value(0)).current;
   const panelTranslate = useRef(new Animated.Value(10)).current;
 
+  // estado da IA híbrida
+  const [insightAIText, setInsightAIText] = useState<string | null>(null);
+  const [insightSource, setInsightSource] = useState<
+    "local" | "free" | "premium" | "error"
+  >("local");
+  const [insightLoading, setInsightLoading] = useState(false);
+
   /* ---------------------------------------------------------
-     Reset de erros ao abrir
+     Reset de erros e estado de insight ao abrir
   ----------------------------------------------------------*/
   useEffect(() => {
     if (visible) {
       setErrors({});
       setStep(0);
+      setInsightAIText(null);
+      setInsightSource("local");
+      setInsightLoading(false);
     }
   }, [visible]);
 
@@ -289,7 +383,7 @@ export default function CreateIncomeModal({ visible, onClose }: Props) {
       fade.setValue(0);
       slide.setValue(20);
     }
-  }, [visible]);
+  }, [visible, fade, slide]);
 
   /* ---------------------------------------------------------
      Animação do painel inteligente (Step 3 e 4)
@@ -311,7 +405,7 @@ export default function CreateIncomeModal({ visible, onClose }: Props) {
       panelFade.setValue(0);
       panelTranslate.setValue(10);
     }
-  }, [step]);
+  }, [step, panelFade, panelTranslate]);
 
   /* ---------------------------------------------------------
      Parsed values
@@ -321,6 +415,142 @@ export default function CreateIncomeModal({ visible, onClose }: Props) {
     () => normalizeDateForSupabase(nextDate),
     [nextDate]
   );
+
+  /* ---------------------------------------------------------
+     IA HÍBRIDA – Income Insights (free + premium)
+     - Usa mesmos dados do painel, sem alterar layout
+  ----------------------------------------------------------*/
+  useEffect(() => {
+    // só roda se modal visível e painel em foco
+    if (!visible) return;
+    if (!(step === 2 || step === 3)) return;
+
+    // precisa de valor + data válida para fazer sentido
+    if (!amountNumber || amountNumber <= 0) return;
+    if (!normalizedNextDate) return;
+
+    const controller = new AbortController();
+    const signal = controller.signal;
+
+    async function runHybridInsights() {
+      try {
+        setInsightLoading(true);
+        setInsightSource("local");
+        setInsightAIText(null);
+
+        // monta payload enxuto para a função
+        // (mantendo coerência com as Edge Functions income-insights-*)
+        const monthly =
+          frequency === "weekly"
+            ? amountNumber * 4
+            : frequency === "biweekly"
+            ? amountNumber * 2
+            : amountNumber; // monthly/once -> amountNumber
+
+        const payload = {
+          name: name.trim() || null,
+          incomeType,
+          frequency,
+          amount: amountNumber,
+          monthly,
+          nextDate: normalizedNextDate,
+        };
+
+        console.log(
+          "[CreateIncomeModal] Chamando income-insights (hybrid), payload:",
+          payload
+        );
+
+        let response: any = null;
+        let source: "free" | "premium" | "error" = "free";
+
+        // Usuário PRO → primeiro tenta premium, cai para free se falhar
+        if (isPro) {
+          try {
+            response = await callIncomeInsightsFunction(
+              "income-insights-premium",
+              payload
+            );
+            source = "premium";
+          } catch (err) {
+            console.log(
+              "[CreateIncomeModal] Erro em income-insights-premium, tentando FREE. Detalhe:",
+              err
+            );
+          }
+        }
+
+        // FREE ou fallback do premium
+        if (!response) {
+          try {
+            response = await callIncomeInsightsFunction(
+              "income-insights-free",
+              payload
+            );
+            if (source !== "premium") {
+              source = "free";
+            }
+          } catch (err) {
+            console.log(
+              "[CreateIncomeModal] Erro em income-insights-free. Detalhe:",
+              err
+            );
+            source = "error";
+          }
+        }
+
+        if (signal.aborted) return;
+
+        // tenta extrair o texto de forma resiliente
+        const text =
+          response?.insightText ||
+          response?.insight_text ||
+          response?.text ||
+          null;
+
+        if (text && typeof text === "string") {
+          setInsightAIText(text);
+          setInsightSource(source);
+        } else {
+          setInsightAIText(null);
+          setInsightSource("error");
+        }
+
+        console.log(
+          "[CreateIncomeModal] Resultado income-insights:",
+          source,
+          text
+        );
+      } catch (err) {
+        if (signal.aborted) return;
+        console.log(
+          "[CreateIncomeModal] Erro inesperado em income-insights:",
+          err
+        );
+        setInsightAIText(null);
+        setInsightSource("error");
+      } finally {
+        if (!signal.aborted) {
+          setInsightLoading(false);
+        }
+      }
+    }
+
+    runHybridInsights();
+
+    return () => {
+      controller.abort();
+    };
+  }, [
+    visible,
+    step,
+    amountNumber,
+    normalizedNextDate,
+    frequency,
+    name,
+    incomeType,
+    isPro,
+  ]);
 
   /* ---------------------------------------------------------
      Validação por step
@@ -373,7 +603,7 @@ export default function CreateIncomeModal({ visible, onClose }: Props) {
      CREATE
   ----------------------------------------------------------*/
   const handleCreate = async () => {
-    // valida Step 2 (data) e revalida básicos
+    // valida todos os steps críticos
     if (!validateStep(0) || !validateStep(1) || !validateStep(2)) {
       return;
     }
@@ -391,7 +621,10 @@ export default function CreateIncomeModal({ visible, onClose }: Props) {
     console.log("DEBUG/CreateIncomeModal → payload:", payload);
 
     const id = await createIncomeSource(payload);
-    console.log("DEBUG/CreateIncomeModal → createIncomeSource retornou:", id);
+    console.log(
+      "DEBUG/CreateIncomeModal → createIncomeSource retornou:",
+      id
+    );
 
     await reload();
     setTimeout(onClose, 120);
@@ -405,17 +638,15 @@ export default function CreateIncomeModal({ visible, onClose }: Props) {
 
   const Steps = [
     // STEP 1 — Nome + Tipo
-    <View style={styles.step}>
+    <View style={styles.step} key="s1">
       <Text style={styles.stepTitle}>Como devemos chamar esta renda?</Text>
       <Text style={styles.stepSubtitle}>
-        Use um nome claro — ele aparecerá em relatórios, projeções e notificações.
+        Use um nome claro — ele aparecerá em relatórios, projeções e
+        notificações.
       </Text>
 
       <View
-        style={[
-          styles.inputGlass,
-          errors.name && styles.cardErrorBorder,
-        ]}
+        style={[styles.inputGlass, errors.name && styles.cardErrorBorder]}
       >
         <Text style={styles.label}>Nome da fonte</Text>
         <TextInput
@@ -468,17 +699,14 @@ export default function CreateIncomeModal({ visible, onClose }: Props) {
     </View>,
 
     // STEP 2 — Valor + Frequência
-    <View style={styles.step}>
+    <View style={styles.step} key="s2">
       <Text style={styles.stepTitle}>Quanto você recebe?</Text>
       <Text style={styles.stepSubtitle}>
         Informe o valor bruto desta renda e a frequência em que ela acontece.
       </Text>
 
       <View
-        style={[
-          styles.inputGlass,
-          errors.amount && styles.cardErrorBorder,
-        ]}
+        style={[styles.inputGlass, errors.amount && styles.cardErrorBorder]}
       >
         <Text style={styles.label}>Valor</Text>
         <TextInput
@@ -490,7 +718,9 @@ export default function CreateIncomeModal({ visible, onClose }: Props) {
           onChangeText={setAmount}
         />
       </View>
-      {errors.amount && <Text style={styles.errorInline}>{errors.amount}</Text>}
+      {errors.amount && (
+        <Text style={styles.errorInline}>{errors.amount}</Text>
+      )}
 
       <Text style={[styles.label, { marginTop: 18 }]}>Frequência</Text>
       <View style={styles.typeRow}>
@@ -526,17 +756,15 @@ export default function CreateIncomeModal({ visible, onClose }: Props) {
     </View>,
 
     // STEP 3 — Data obrigatória + painel
-    <View style={styles.step}>
+    <View style={styles.step} key="s3">
       <Text style={styles.stepTitle}>Quando você recebe?</Text>
       <Text style={styles.stepSubtitle}>
-        A data do próximo pagamento ativa lembretes inteligentes e projeções de caixa.
+        A data do próximo pagamento ativa lembretes inteligentes e projeções de
+        caixa.
       </Text>
 
       <View
-        style={[
-          styles.inputGlass,
-          errors.nextDate && styles.cardErrorBorder,
-        ]}
+        style={[styles.inputGlass, errors.nextDate && styles.cardErrorBorder]}
       >
         <Text style={styles.label}>Próximo pagamento</Text>
         <TextInput
@@ -558,10 +786,11 @@ export default function CreateIncomeModal({ visible, onClose }: Props) {
     </View>,
 
     // STEP 4 — Revisão
-    <View style={styles.step}>
+    <View style={styles.step} key="s4">
       <Text style={styles.stepTitle}>Revisar detalhes</Text>
       <Text style={styles.stepSubtitle}>
-        Confirme se está tudo certo antes de adicionar esta renda ao seu painel.
+        Confirme se está tudo certo antes de adicionar esta renda ao seu
+        painel.
       </Text>
 
       <View style={styles.reviewCard}>
@@ -658,7 +887,11 @@ export default function CreateIncomeModal({ visible, onClose }: Props) {
               showsVerticalScrollIndicator={false}
               contentContainerStyle={{ paddingBottom: 200 }}
             >
-              <BlurView intensity={30} tint="dark" style={styles.wizardContainer}>
+              <BlurView
+                intensity={30}
+                tint="dark"
+                style={styles.wizardContainer}
+              >
                 <View style={styles.stepScrollContent}>{Steps[step]}</View>
               </BlurView>
 
@@ -677,6 +910,9 @@ export default function CreateIncomeModal({ visible, onClose }: Props) {
                     frequency={frequency}
                     amountNumber={amountNumber}
                     normalizedNextDate={normalizedNextDate}
+                    aiText={insightAIText}
+                    aiSource={insightSource}
+                    loading={insightLoading}
                   />
                 </Animated.View>
               )}

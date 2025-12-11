@@ -1,3 +1,4 @@
+// app/goals/[id].tsx
 import React, { useMemo } from "react";
 import {
   View,
@@ -22,7 +23,7 @@ import Icon from "@/components/ui/Icon";
 import GoalMainCard from "@/components/app/goals/GoalMainCard";
 import GoalDebtMainCard from "@/components/app/goals/GoalDebtMainCard";
 
-// INVESTIMENTOS (bloco premium)
+// INVESTIMENTOS
 import InvestmentMainBlock from "@/components/app/investments/InvestmentMainBlock";
 import {
   SeriesMap,
@@ -36,6 +37,7 @@ import GoalsInsightsCard from "@/components/app/goals/GoalsInsightsCard";
 // HOOKS
 import { useGoals } from "@/hooks/useGoals";
 import { useGoalsInsights } from "@/hooks/useGoalsInsights";
+import { useUserPlan } from "@/hooks/useUserPlan";
 
 const brandFont = Platform.select({
   ios: "SF Pro Display",
@@ -88,15 +90,15 @@ function buildInvestmentSeries(goal: any): SeriesMap {
 export default function GoalDetailScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ id?: string }>();
+  const { isPro } = useUserPlan();
 
   const rawId = params?.id ?? null;
   const goalId = rawId === "create" ? null : rawId;
 
   const { loading, goals, debts, investments, reload } = useGoals();
-  const { insights } = useGoalsInsights();
 
   /* ============================================================
-     RELOAD AO FOCAR NA TELA
+     RELOAD AO FOCAR
   ============================================================ */
   useFocusEffect(
     React.useCallback(() => {
@@ -123,6 +125,14 @@ export default function GoalDetailScreen() {
   const hasInstallments = (goal?.installments ?? []).length > 0;
 
   /* ============================================================
+     DEFINIR TIPO DE INSIGHT (detalhe)
+  ============================================================ */
+  const detailTab =
+    isDebt ? "debts" : isInvestment ? "investments" : "goals";
+
+  const { insights } = useGoalsInsights(detailTab);
+
+  /* ============================================================
      LOADING / NOT FOUND
   ============================================================ */
   if (loading && !goal) {
@@ -145,7 +155,7 @@ export default function GoalDetailScreen() {
   }
 
   /* ============================================================
-     SÉRIES DE INVESTIMENTO
+     SERIES — INVESTIMENTO
   ============================================================ */
   const series: SeriesMap = isInvestment
     ? buildInvestmentSeries(goal)
@@ -163,7 +173,6 @@ export default function GoalDetailScreen() {
   ============================================================ */
   return (
     <Screen>
-      {/* IMPORTANTE — ScrollView dentro de um container FLEX */}
       <View style={{ flex: 1 }}>
         <ScrollView
           showsVerticalScrollIndicator={false}
@@ -180,7 +189,7 @@ export default function GoalDetailScreen() {
             <View style={{ width: 32 }} />
           </View>
 
-          {/* META OU DÍVIDA */}
+          {/* META / DÍVIDA */}
           {isDebt ? (
             <GoalDebtMainCard
               debt={goal}
@@ -207,7 +216,7 @@ export default function GoalDetailScreen() {
             />
           ) : null}
 
-          {/* INVESTIMENTO UI PREMIUM */}
+          {/* INVESTIMENTO */}
           {isInvestment && (
             <View style={{ marginTop: 20, paddingHorizontal: 18 }}>
               <InvestmentMainBlock
@@ -241,8 +250,12 @@ export default function GoalDetailScreen() {
             {!insights || insights.length === 0 ? (
               <Text style={styles.noInsights}>Nenhum insight disponível.</Text>
             ) : (
-              insights.map((item, i) => (
-                <GoalsInsightsCard key={i} item={item} />
+              insights.map((insight, i) => (
+                <GoalsInsightsCard
+                  key={insight.id ?? i}
+                  insight={insight}
+                  isPro={isPro}
+                />
               ))
             )}
           </View>

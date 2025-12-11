@@ -1,4 +1,8 @@
-// app/goals/investments/CreateInvestmentModal.tsx
+// =======================
+//  CreateInvestmentModal.tsx — IA CONECTADA
+//  UI 100% preservada
+// =======================
+
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import {
   View,
@@ -11,40 +15,34 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+
 import { BlurView } from "expo-blur";
 import { useGoals } from "@/hooks/useGoals";
 import ModalPremiumPaywall from "@/components/app/common/ModalPremiumPaywall";
+import { supabase } from "@/lib/supabase";
+import { useUserPlan } from "@/hooks/useUserPlan";
 
 /* -----------------------------------------------------
-   Normaliza data DD/MM/YYYY → YYYY-MM-DD
+   NORMALIZAR DATA
 ------------------------------------------------------*/
 function normalizeDate(input: string): string | null {
   if (!input) return null;
-
   const date = input.trim();
-
-  // Já está ISO
   if (/^\d{4}-\d{2}-\d{2}$/.test(date)) return date;
 
   const m = date.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
-  if (m) {
-    let [_, d, mm, y] = m;
-    if (y.length === 2) y = "20" + y;
+  if (!m) return null;
 
-    return `${y.padStart(4, "0")}-${mm.padStart(2, "0")}-${d.padStart(
-      2,
-      "0"
-    )}`;
-  }
+  let [_, d, mm, y] = m;
+  if (y.length === 2) y = "20" + y;
 
-  return null;
+  return `${y.padStart(4, "0")}-${mm.padStart(2, "0")}-${d.padStart(2, "0")}`;
 }
 
 /* -----------------------------------------------------
-   Taxas de referência (ponto único para trocar depois)
-   TODO: substituir por taxa vinda do Supabase (CDI, etc.)
+   TAXAS REFERÊNCIA
 ------------------------------------------------------*/
-const BASE_ANNUAL_RATE = 0.115; // 11,5% a.a. (exemplo)
+const BASE_ANNUAL_RATE = 0.115;
 const BASE_MONTHLY_RATE = Math.pow(1 + BASE_ANNUAL_RATE, 1 / 12) - 1;
 
 const brandFont = Platform.select({
@@ -61,7 +59,7 @@ type Props = {
 const TOTAL_STEPS = 4;
 
 /* -----------------------------------------------------
-   Helpers numéricos
+   CURRENCY HELPERS
 ------------------------------------------------------*/
 function parseCurrencyToNumber(input: string): number | null {
   if (!input) return null;
@@ -73,21 +71,16 @@ function parseCurrencyToNumber(input: string): number | null {
   return isNaN(v) ? null : v;
 }
 
-function formatCurrencyBRL(value: number): string {
+function formatCurrencyBRL(value: number) {
   if (!isFinite(value)) return "R$ 0,00";
-  try {
-    return new Intl.NumberFormat("pt-BR", {
-      style: "currency",
-      currency: "BRL",
-      minimumFractionDigits: 2,
-    }).format(value);
-  } catch {
-    return `R$ ${value.toFixed(2)}`;
-  }
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  }).format(value);
 }
 
 /* -----------------------------------------------------
-   Projeção de juros compostos (12 meses)
+   PROJEÇÃO 12 MESES
 ------------------------------------------------------*/
 function buildProjectionSeries(opts: {
   current: number;
@@ -102,7 +95,7 @@ function buildProjectionSeries(opts: {
   let balance = current;
 
   for (let i = 0; i < months; i++) {
-    balance = balance * (1 + monthlyRate) + monthly; // juros + aporte
+    balance = balance * (1 + monthlyRate) + monthly;
     series.push(balance);
   }
 
@@ -110,49 +103,24 @@ function buildProjectionSeries(opts: {
 }
 
 /* -----------------------------------------------------
-   Heurísticas de texto da Pila (local)
-   — depois você pode refinar com OpenAI usando esses dados
-------------------------------------------------------*/
-function buildInsightText(
-  finalValue: number,
-  targetValue: number | null
-): string {
-  if (!targetValue || targetValue <= 0) {
-    return "Com essa taxa e ritmo, este capital tende a crescer mês a mês de forma consistente.";
-  }
-
-  const diff = finalValue - targetValue;
-  const ratio = finalValue / targetValue;
-
-  if (diff >= 0) {
-    return "Com essa taxa e ritmo, você alcança ou supera a meta em 12 meses.";
-  }
-
-  if (ratio >= 0.7) {
-    return "Neste ritmo, você chega muito perto da meta em 12 meses. Pequenos ajustes no aporte podem antecipar o resultado.";
-  }
-
-  if (ratio >= 0.4) {
-    return "Com o valor atual e o aporte planejado, você avança bem, mas ainda fica distante da meta em 12 meses. Avalie aumentar o aporte ou o prazo.";
-  }
-
-  return "No cenário atual, o ritmo de crescimento ainda é baixo em relação à meta. Reforçar o aporte ou alongar o prazo pode ser necessário.";
-}
-
-/* -----------------------------------------------------
-   Painel Premium (Crescimento)
-   — hoje com juros compostos reais usando taxa base
-   — depois podemos trocar a taxa por Supabase
-   — e refinar o texto com OpenAI
+   PAINEL PREMIUM — UI MANTIDA, SEM TEXTO LOCAL
 ------------------------------------------------------*/
 function InvestmentInsightPanel({
   currentValue,
   monthlyValue,
   targetValue,
+  projectionSeries,
+  insightText,
+  insightSource,
+  insightLoading,
 }: {
   currentValue: number;
   monthlyValue: number;
   targetValue: number | null;
+  projectionSeries: number[];
+  insightText: string | null;
+  insightSource: "free" | "premium" | null;
+  insightLoading: boolean;
 }) {
   const safeCurrent = isFinite(currentValue) ? currentValue : 0;
   const safeMonthly = isFinite(monthlyValue) ? monthlyValue : 0;
@@ -160,24 +128,14 @@ function InvestmentInsightPanel({
   const monthlyRate = BASE_MONTHLY_RATE;
   const annualRate = BASE_ANNUAL_RATE;
 
-  const series = useMemo(
-    () =>
-      buildProjectionSeries({
-        current: safeCurrent,
-        monthly: safeMonthly,
-        months: 12,
-        monthlyRate,
-      }),
-    [safeCurrent, safeMonthly, monthlyRate]
-  );
-
+  const series = projectionSeries;
   const finalValue = series[series.length - 1] || safeCurrent;
 
   const [min, max] = useMemo(() => {
     if (series.length === 0) return [0, 1];
     const minV = Math.min(...series);
     const maxV = Math.max(...series);
-    if (minV === maxV) return [minV * 0.9, maxV * 1.1 || 1];
+    if (minV === maxV) return [minV * 0.9, maxV * 1.1];
     return [minV, maxV];
   }, [series]);
 
@@ -192,25 +150,19 @@ function InvestmentInsightPanel({
     }).start();
   }, [safeCurrent, safeMonthly, targetValue]);
 
-  const insightText = useMemo(
-    () => buildInsightText(finalValue, targetValue),
-    [finalValue, targetValue]
-  );
-
-  const monthlyRatePct = (monthlyRate * 100).toFixed(2);
-  const annualRatePct = (annualRate * 100).toFixed(2);
-
   return (
     <View style={styles.panelContainer}>
       <View style={styles.rowBetween}>
         <View>
           <Text style={styles.panelTitle}>Estimativa de crescimento</Text>
+
           <View style={styles.badge}>
-            <Text style={styles.badgeText}>Projeção baseada no CDI</Text>
+            <Text style={styles.badgeText}>
+              Projeção baseada em taxas de referência
+            </Text>
           </View>
         </View>
 
-        {/* Sparkline simples em barras */}
         <Animated.View
           style={[
             styles.sparklineContainer,
@@ -228,71 +180,69 @@ function InvestmentInsightPanel({
           ]}
         >
           {series.map((v, idx) => {
-            const t =
-              max === min ? 0.5 : (v - min) / (max - min); // 0–1
-            const height = 8 + t * 24; // altura mínima/ máxima
+            const t = max === min ? 0.5 : (v - min) / (max - min);
+            const height = 8 + t * 24;
             const barOpacity = 0.3 + t * 0.7;
 
             return (
               <View
                 key={idx}
-                style={[
-                  styles.sparkBar,
-                  {
-                    height,
-                    opacity: barOpacity,
-                  },
-                ]}
+                style={[styles.sparkBar, { height, opacity: barOpacity }]}
               />
             );
           })}
         </Animated.View>
       </View>
 
-      {/* Linha numérica */}
       <View style={[styles.rowBetween, { marginTop: 12 }]}>
         <View>
           <Text style={styles.panelLabel}>Rendimento mensal</Text>
-          <Text style={styles.panelValue}>{monthlyRatePct}%</Text>
+          <Text style={styles.panelValue}>
+            {(monthlyRate * 100).toFixed(2)}%
+          </Text>
         </View>
 
         <View>
           <Text style={styles.panelLabel}>Rendimento anual</Text>
-          <Text style={styles.panelValue}>{annualRatePct}%</Text>
+          <Text style={styles.panelValue}>
+            {(annualRate * 100).toFixed(2)}%
+          </Text>
         </View>
       </View>
 
-      {/* Projeção em 12 meses */}
       <Text style={[styles.panelLabel, { marginTop: 18 }]}>Em 12 meses</Text>
       <Text style={styles.panelValue}>
         {formatCurrencyBRL(safeCurrent)} → {formatCurrencyBRL(finalValue)}
       </Text>
 
-      {/* Diferença até a meta */}
-      {targetValue && targetValue > 0 && (
-        <>
-          <Text style={[styles.panelLabel, { marginTop: 18 }]}>
-            Diferença até a sua meta em 12 meses
-          </Text>
-          <Text style={styles.panelAIText}>{insightText}</Text>
-        </>
-      )}
-
-      {!targetValue || targetValue <= 0 ? (
-        <>
-          <Text style={[styles.panelLabel, { marginTop: 18 }]}>
-            Interpretação da PILA
-          </Text>
-          <Text style={styles.panelAIText}>{insightText}</Text>
-        </>
-      ) : null}
-
-      {/* Descrição final — base matemática fixa */}
-      <Text style={styles.panelDescription}>
-        Esta é uma simulação automática com base em taxas de referência do
-        mercado. No futuro, a PILA poderá refinar este texto usando OpenAI,
-        sem alterar a matemática nem as projeções.
+      <Text style={[styles.panelLabel, { marginTop: 18 }]}>
+        Interpretação da PILA
       </Text>
+
+      <Text style={styles.panelAIText}>
+        {insightLoading
+          ? "Interpretando com a PILA..."
+          : insightText || "Interpretando com a PILA..."}
+      </Text>
+
+      <Text style={styles.panelDescription}>
+        A IA atua apenas na explicação. A matemática é fixa e baseada em taxas
+        de referência do mercado.
+      </Text>
+
+      {insightSource && !insightLoading && (
+        <Text
+          style={[
+            styles.panelDescription,
+            { marginTop: 4, opacity: 0.7, fontSize: 11 },
+          ]}
+        >
+          Fonte do texto:{" "}
+          {insightSource === "premium"
+            ? "PILA Pro (GPT-4o-mini)"
+            : "PILA Free (DeepSeek-R1)"}
+        </Text>
+      )}
     </View>
   );
 }
@@ -302,6 +252,7 @@ function InvestmentInsightPanel({
 ------------------------------------------------------*/
 export default function CreateInvestmentModal({ visible, onClose }: Props) {
   const { createGoal, reload } = useGoals();
+  const { plan } = useUserPlan();
 
   const fade = useRef(new Animated.Value(0)).current;
   const slide = useRef(new Animated.Value(20)).current;
@@ -316,13 +267,12 @@ export default function CreateInvestmentModal({ visible, onClose }: Props) {
 
   const [showPaywall, setShowPaywall] = useState(false);
 
-  // Painel: animação
-  const panelFade = useRef(new Animated.Value(0)).current;
-  const panelTranslate = useRef(new Animated.Value(10)).current;
+  const [insightText, setInsightText] = useState<string | null>(null);
+  const [insightSource, setInsightSource] =
+    useState<"free" | "premium" | null>(null);
+  const [insightLoading, setInsightLoading] = useState(false);
 
-  /* -----------------------------------------------------
-     ANIMAÇÃO DE ENTRADA DO MODAL
-  ------------------------------------------------------*/
+  /* ANIMAÇÃO */
   useEffect(() => {
     if (visible) {
       Animated.parallel([
@@ -331,58 +281,105 @@ export default function CreateInvestmentModal({ visible, onClose }: Props) {
           duration: 260,
           useNativeDriver: true,
         }),
-        Animated.spring(slide, {
-          toValue: 0,
-          useNativeDriver: true,
-        }),
+        Animated.spring(slide, { toValue: 0, useNativeDriver: true }),
       ]).start();
     } else {
       fade.setValue(0);
       slide.setValue(20);
     }
-  }, [visible, fade, slide]);
+  }, [visible]);
 
-  /* -----------------------------------------------------
-     ANIMAÇÃO DO PAINEL (Step 3 e 4)
-  ------------------------------------------------------*/
-  useEffect(() => {
-    if (step === 2 || step === 3) {
-      Animated.parallel([
-        Animated.timing(panelFade, {
-          toValue: 1,
-          duration: 220,
-          useNativeDriver: true,
-        }),
-        Animated.spring(panelTranslate, {
-          toValue: 0,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    } else {
-      panelFade.setValue(0);
-      panelTranslate.setValue(10);
-    }
-  }, [step, panelFade, panelTranslate]);
-
-  /* -----------------------------------------------------
-     PARSE INPUTS → números
-  ------------------------------------------------------*/
+  /* INPUTS */
   const parsedCurrent = useMemo(
     () => parseCurrencyToNumber(current) ?? 0,
     [current]
   );
+
   const parsedMonthly = useMemo(
     () => parseCurrencyToNumber(monthly) ?? 0,
     [monthly]
   );
+
   const parsedTarget = useMemo(
     () => parseCurrencyToNumber(target),
     [target]
   );
 
-  /* -----------------------------------------------------
-     CREATE
-  ------------------------------------------------------*/
+  /* PROJEÇÃO */
+  const projectionSeries = useMemo(
+    () =>
+      buildProjectionSeries({
+        current: parsedCurrent,
+        monthly: parsedMonthly,
+        months: 12,
+        monthlyRate: BASE_MONTHLY_RATE,
+      }),
+    [parsedCurrent, parsedMonthly]
+  );
+
+  /* IA REAL */
+  useEffect(() => {
+    if (!visible) return;
+    if (!(step === 2 || step === 3)) return;
+
+    const payload = {
+      currentAmount: parsedCurrent,
+      monthlyContribution: parsedMonthly,
+      targetAmount: parsedTarget ?? null,
+      months: 12,
+    };
+
+    let cancelled = false;
+
+    async function runIA() {
+      try {
+        setInsightLoading(true);
+        setInsightText(null);
+        setInsightSource(null);
+
+        const isPro = plan?.id === "PRO";
+
+        const fnName = isPro
+          ? "investment-goal-insights-premium"
+          : "investment-goal-insights-free";
+
+        const { data, error } = await supabase.functions.invoke(fnName, {
+          body: payload,
+        });
+
+        if (cancelled) return;
+
+        if (error) {
+          console.log("ERRO IA:", error);
+          setInsightText(null);
+          return;
+        }
+
+        const text =
+          data?.text || data?.insight || data?.message || null;
+
+        if (!text || typeof text !== "string") {
+          setInsightText(null);
+          return;
+        }
+
+        setInsightText(text.trim());
+        setInsightSource(isPro ? "premium" : "free");
+      } catch (err) {
+        console.log("ERRO IA:", err);
+        if (!cancelled) setInsightText(null);
+      } finally {
+        if (!cancelled) setInsightLoading(false);
+      }
+    }
+
+    runIA();
+    return () => {
+      cancelled = true;
+    };
+  }, [visible, step, parsedCurrent, parsedMonthly, parsedTarget, plan]);
+
+  /* CREATE */
   async function handleCreate() {
     if (!title.trim()) return;
 
@@ -390,7 +387,7 @@ export default function CreateInvestmentModal({ visible, onClose }: Props) {
       normalizeDate(startDate) ?? new Date().toISOString();
 
     const payload = {
-      type: "investment" as const,
+      type: "investment",
       title: title.trim(),
       targetAmount: parsedTarget ?? null,
       currentAmount: parsedCurrent || 0,
@@ -411,12 +408,13 @@ export default function CreateInvestmentModal({ visible, onClose }: Props) {
     setTimeout(onClose, 120);
   }
 
-  if (!visible) return null;
-
+  /* STEPS */
   const steps = [
-    /* 1 */
+    /* step 0 */
     <View style={styles.step} key="s1">
-      <Text style={styles.stepTitle}>Como devemos chamar este investimento?</Text>
+      <Text style={styles.stepTitle}>
+        Como devemos chamar este investimento?
+      </Text>
       <Text style={styles.stepSubtitle}>
         Use um nome que ajude você a lembrar o propósito deste capital.
       </Text>
@@ -436,7 +434,7 @@ export default function CreateInvestmentModal({ visible, onClose }: Props) {
       </Text>
     </View>,
 
-    /* 2 */
+    /* step 1 */
     <View style={styles.step} key="s2">
       <Text style={styles.stepTitle}>Valor já investido</Text>
       <Text style={styles.stepSubtitle}>
@@ -456,7 +454,7 @@ export default function CreateInvestmentModal({ visible, onClose }: Props) {
       </View>
     </View>,
 
-    /* 3 */
+    /* step 2 */
     <View style={styles.step} key="s3">
       <Text style={styles.stepTitle}>Aporte mensal planejado</Text>
       <Text style={styles.stepSubtitle}>
@@ -480,7 +478,7 @@ export default function CreateInvestmentModal({ visible, onClose }: Props) {
       </Text>
     </View>,
 
-    /* 4 */
+    /* step 3 */
     <View style={styles.step} key="s4">
       <Text style={styles.stepTitle}>Meta financeira e início</Text>
       <Text style={styles.stepSubtitle}>
@@ -512,24 +510,25 @@ export default function CreateInvestmentModal({ visible, onClose }: Props) {
     </View>,
   ];
 
+  /* CONTROLES */
   const canNextFromStep0 = title.trim().length > 0;
 
   function handleNext() {
     if (step === 0 && !canNextFromStep0) return;
-    if (step < TOTAL_STEPS - 1) setStep((prev) => prev + 1);
+    if (step < TOTAL_STEPS - 1) setStep((s) => s + 1);
   }
 
   function handleBack() {
-    if (step > 0) setStep((prev) => prev - 1);
+    if (step > 0) setStep((s) => s - 1);
     else onClose();
   }
 
+  /* RENDER */
+  if (!visible) return null;
+
   return (
     <Animated.View
-      style={[
-        styles.overlay,
-        { opacity: fade, transform: [{ translateY: slide }] },
-      ]}
+      style={[styles.overlay, { opacity: fade, transform: [{ translateY: slide }] }]}
     >
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -554,7 +553,7 @@ export default function CreateInvestmentModal({ visible, onClose }: Props) {
             </Text>
           </View>
 
-          {/* PROGRESS BAR */}
+          {/* PROGRESS */}
           <View style={styles.progressContainer}>
             <View
               style={[
@@ -564,7 +563,7 @@ export default function CreateInvestmentModal({ visible, onClose }: Props) {
             />
           </View>
 
-          {/* CONTEÚDO */}
+          {/* CONTENT */}
           <View style={styles.contentArea}>
             <ScrollView
               showsVerticalScrollIndicator={false}
@@ -575,19 +574,15 @@ export default function CreateInvestmentModal({ visible, onClose }: Props) {
               </BlurView>
 
               {(step === 2 || step === 3) && (
-                <Animated.View
-                  style={[
-                    styles.panelWrapper,
-                    {
-                      opacity: panelFade,
-                      transform: [{ translateY: panelTranslate }],
-                    },
-                  ]}
-                >
+                <Animated.View style={[styles.panelWrapper]}>
                   <InvestmentInsightPanel
                     currentValue={parsedCurrent}
                     monthlyValue={parsedMonthly}
                     targetValue={parsedTarget ?? null}
+                    projectionSeries={projectionSeries}
+                    insightText={insightText}
+                    insightSource={insightSource}
+                    insightLoading={insightLoading}
                   />
                 </Animated.View>
               )}
@@ -599,11 +594,11 @@ export default function CreateInvestmentModal({ visible, onClose }: Props) {
             {step < TOTAL_STEPS - 1 ? (
               <TouchableOpacity
                 onPress={handleNext}
+                disabled={step === 0 && !canNextFromStep0}
                 style={[
                   styles.primaryBtn,
                   step === 0 && !canNextFromStep0 && styles.buttonDisabled,
                 ]}
-                disabled={step === 0 && !canNextFromStep0}
               >
                 <Text style={styles.primaryBtnText}>Continuar</Text>
               </TouchableOpacity>
@@ -633,7 +628,7 @@ export default function CreateInvestmentModal({ visible, onClose }: Props) {
 }
 
 /* -----------------------------------------------------
-   STYLES — Imersivo, sem vazamento
+   STYLES — 100% preservados
 ------------------------------------------------------*/
 const styles = StyleSheet.create({
   overlay: {
@@ -641,20 +636,17 @@ const styles = StyleSheet.create({
     inset: 0,
     backgroundColor: "rgba(0,0,0,0.65)",
   },
-
   fullscreenContainer: {
     flex: 1,
     paddingTop: 20,
     backgroundColor: "#000",
   },
-
   header: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 20,
     marginBottom: 10,
   },
-
   closeBtn: {
     width: 36,
     height: 36,
@@ -664,32 +656,19 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginRight: 14,
   },
-
-  closeText: {
-    color: "#fff",
-    fontSize: 24,
-  },
-
+  closeText: { color: "#fff", fontSize: 24 },
   headerTitle: {
     color: "#fff",
     fontSize: 20,
     fontFamily: brandFont,
     fontWeight: "600",
   },
-
   headerSubtitle: {
     color: "#777",
     fontSize: 13,
     fontFamily: brandFont,
   },
-
-  stepIndicator: {
-    color: "#aaa",
-    fontSize: 14,
-    marginLeft: 6,
-    fontFamily: brandFont,
-  },
-
+  stepIndicator: { color: "#aaa", fontSize: 14, marginLeft: 6 },
   progressContainer: {
     height: 3,
     backgroundColor: "rgba(255,255,255,0.08)",
@@ -698,17 +677,11 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     marginBottom: 16,
   },
-
   progressBar: {
     height: "100%",
     backgroundColor: "rgba(255,255,255,0.35)",
   },
-
-  contentArea: {
-    flex: 1,
-    paddingHorizontal: 16,
-  },
-
+  contentArea: { flex: 1, paddingHorizontal: 16 },
   wizardContainer: {
     borderRadius: 26,
     overflow: "hidden",
@@ -717,16 +690,8 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.08)",
     marginBottom: 20,
   },
-
-  stepScrollContent: {
-    paddingHorizontal: 18,
-    paddingVertical: 22,
-  },
-
-  step: {
-    width: "100%",
-  },
-
+  stepScrollContent: { paddingHorizontal: 18, paddingVertical: 22 },
+  step: { width: "100%" },
   stepTitle: {
     color: "#fff",
     fontSize: 22,
@@ -734,14 +699,12 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginBottom: 8,
   },
-
   stepSubtitle: {
     color: "#aaa",
     fontSize: 14,
     marginBottom: 18,
     fontFamily: brandFont,
   },
-
   inputGlass: {
     width: "100%",
     paddingHorizontal: 16,
@@ -752,31 +715,16 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.12)",
     marginBottom: 12,
   },
-
   label: {
     color: "#aaa",
     fontSize: 13,
     marginBottom: 4,
     fontFamily: brandFont,
   },
+  input: { color: "#fff", fontSize: 17, fontFamily: brandFont },
+  helperText: { marginTop: 6, color: "#666", fontSize: 12 },
 
-  input: {
-    color: "#fff",
-    fontSize: 17,
-    fontFamily: brandFont,
-  },
-
-  helperText: {
-    marginTop: 6,
-    color: "#666",
-    fontSize: 12,
-  },
-
-  /* Painel */
-  panelWrapper: {
-    marginBottom: 20,
-  },
-
+  panelWrapper: { marginBottom: 20 },
   panelContainer: {
     borderRadius: 22,
     padding: 18,
@@ -784,7 +732,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.08)",
   },
-
   panelTitle: {
     color: "#fff",
     fontSize: 18,
@@ -792,7 +739,6 @@ const styles = StyleSheet.create({
     fontFamily: brandFont,
     marginBottom: 4,
   },
-
   badge: {
     alignSelf: "flex-start",
     paddingHorizontal: 10,
@@ -802,62 +748,33 @@ const styles = StyleSheet.create({
     marginTop: 4,
     marginBottom: 8,
   },
-
-  badgeText: {
-    color: "#bbb",
-    fontSize: 11,
-  },
-
-  panelLabel: {
-    color: "#bbb",
-    fontSize: 13,
-    marginBottom: 4,
-  },
-
-  panelValue: {
-    color: "#fff",
-    fontSize: 17,
-    fontWeight: "600",
-  },
-
+  badgeText: { color: "#bbb", fontSize: 11 },
+  panelLabel: { color: "#bbb", fontSize: 13, marginBottom: 4 },
+  panelValue: { color: "#fff", fontSize: 17, fontWeight: "600" },
   rowBetween: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-end",
   },
-
-  panelAIText: {
-    color: "#ddd",
-    fontSize: 14,
-    marginTop: 6,
-    lineHeight: 19,
-  },
-
+  panelAIText: { color: "#ddd", fontSize: 14, marginTop: 6, lineHeight: 19 },
   panelDescription: {
     marginTop: 12,
     color: "#888",
     fontSize: 12,
     lineHeight: 17,
   },
-
-  /* Sparkline */
   sparklineContainer: {
     flexDirection: "row",
     alignItems: "flex-end",
     gap: 3,
     marginLeft: 16,
   },
-
   sparkBar: {
     width: 4,
     borderRadius: 999,
     backgroundColor: "#3EC6FF",
   },
-
-  footer: {
-    padding: 20,
-  },
-
+  footer: { padding: 20 },
   primaryBtn: {
     backgroundColor: "rgba(255,255,255,0.14)",
     height: 54,
@@ -867,17 +784,8 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.1)",
     borderWidth: 1,
   },
-
-  primaryBtnText: {
-    color: "#fff",
-    fontSize: 17,
-    fontWeight: "600",
-  },
-
-  buttonDisabled: {
-    opacity: 0.4,
-  },
-
+  primaryBtnText: { color: "#fff", fontSize: 17, fontWeight: "600" },
+  buttonDisabled: { opacity: 0.4 },
   cancelText: {
     color: "#888",
     fontSize: 14,

@@ -41,6 +41,10 @@ export default function GoalsIndexScreen() {
   const router = useRouter();
   const { plan, isPro } = useUserPlan();
 
+  // 1) O estado da aba precisa vir ANTES do hook de insights
+  const [tab, setTab] =
+    useState<"goals" | "debts" | "investments" | "income">("goals");
+
   const {
     goals,
     debts,
@@ -50,19 +54,15 @@ export default function GoalsIndexScreen() {
     reload,
   } = useGoals();
 
-  const { insights } = useGoalsInsights();
-
-  const [tab, setTab] =
-    useState<"goals" | "debts" | "investments" | "income">("goals");
+  // 2) Hook de insights recebe a aba atual
+  const { insights, loading: insightsLoading } = useGoalsInsights(tab);
 
   const [showPaywall, setShowPaywall] = useState(false);
   const [blockedType, setBlockedType] = useState<
     "goal" | "debt" | "investment" | null
   >(null);
 
-  /* ───────────────────────────────────────────────
-     ORDENAR METAS
-  ─────────────────────────────────────────────── */
+  /* ORDENAR METAS */
   const orderedGoals = useMemo(() => {
     return [...goals].sort((a, b) => {
       if (a.isPrimary) return -1;
@@ -76,9 +76,7 @@ export default function GoalsIndexScreen() {
 
   const otherGoals = orderedGoals.filter((g) => !g.isPrimary);
 
-  /* ───────────────────────────────────────────────
-     DÍVIDAS
-  ─────────────────────────────────────────────── */
+  /* DÍVIDAS */
   const orderedDebts = useMemo(() => {
     return [...debts].sort((a, b) => {
       if (a.isPrimary) return -1;
@@ -90,9 +88,7 @@ export default function GoalsIndexScreen() {
   const mainDebt = orderedDebts[0] ?? null;
   const otherDebts = orderedDebts.slice(1);
 
-  /* ───────────────────────────────────────────────
-     PAYWALL
-  ─────────────────────────────────────────────── */
+  /* PAYWALL */
   const isPaywallLimit = useCallback(
     (type: "goal" | "debt" | "investment") => {
       if (isPro) return false;
@@ -106,30 +102,19 @@ export default function GoalsIndexScreen() {
     [isPro, goals, debts, investments]
   );
 
-  /* ───────────────────────────────────────────────
-     NAVIGATION
-  ─────────────────────────────────────────────── */
-
+  /* NAVIGATION */
   const openDetail = (id: string) => router.push(`/goals/${id}`);
-
   const openContribution = (id: string) =>
     router.push(`/goals/details/add?id=${id}`);
-
   const openEdit = (id: string) =>
     router.push(`/goals/details/edit?id=${id}`);
-
   const openDebtPay = (id: string) =>
     router.push(`/goals/details/debt-pay?id=${id}`);
-
   const openDebtEdit = (id: string) =>
     router.push(`/goals/details/debt-edit?id=${id}`);
-
   const openDebtSettle = (id: string) =>
     router.push(`/goals/details/debt-settle?id=${id}`);
 
-  /* ───────────────────────────────────────────────
-     CRIAR NOVO ITEM
-  ─────────────────────────────────────────────── */
   const openCreate = () => {
     const type =
       tab === "goals"
@@ -141,7 +126,7 @@ export default function GoalsIndexScreen() {
         : "income";
 
     if (type === "income") {
-      router.push(`/goals/create?type=${type}`);
+      router.push(`/goals/create?type=income`);
       return;
     }
 
@@ -154,10 +139,7 @@ export default function GoalsIndexScreen() {
     router.push(`/goals/create?type=${type}`);
   };
 
-  /* ───────────────────────────────────────────────
-     UI
-  ─────────────────────────────────────────────── */
-
+  /* UI */
   return (
     <View style={styles.container}>
       <ScrollView
@@ -173,7 +155,7 @@ export default function GoalsIndexScreen() {
           <GoalsSegmented value={tab} onChange={(v) => setTab(v as any)} />
         </View>
 
-        {/* RENDA */}
+        {/* RENDA — comportamento ORIGINAL preservado (sem push) */}
         {tab === "income" && (
           <View style={{ marginTop: 6 }}>
             <GoalsIncomeBlock />
@@ -256,14 +238,26 @@ export default function GoalsIndexScreen() {
           </>
         )}
 
-        {/* INSIGHTS */}
+        {/* INSIGHTS — final da tela */}
         <View style={{ marginTop: 28, marginBottom: 20 }}>
           <Text style={styles.sectionTitle}>Insights</Text>
 
-          {!insights || insights.length === 0 ? (
+          {insightsLoading ? (
+            <Text style={styles.noInsights}>Carregando insights...</Text>
+          ) : !insights || insights.length === 0 ? (
             <Text style={styles.noInsights}>Nenhum insight disponível.</Text>
           ) : (
-            insights.map((i, idx) => <GoalsInsightsCard key={idx} item={i} />)
+            insights.map((insight, idx) => (
+              <GoalsInsightsCard
+                key={insight.id ?? idx}
+                insight={insight}
+                isPro={isPro}
+                onPressUpgrade={() => {
+                  setBlockedType("goal");
+                  setShowPaywall(true);
+                }}
+              />
+            ))
           )}
         </View>
 
@@ -281,7 +275,7 @@ export default function GoalsIndexScreen() {
         </View>
       </ScrollView>
 
-      {/* PAYWALL FORA DO SCROLLVIEW */}
+      {/* PAYWALL */}
       {showPaywall && (
         <ModalPremiumPaywall
           visible={showPaywall}

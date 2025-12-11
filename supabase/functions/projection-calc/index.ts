@@ -1,19 +1,20 @@
-// /supabase/functions/projection/calc/index.ts
-// Edge Function oficial — NÖUS Invest+
-// Projeção real com CDI + aporte mensal + retorno opcional de ativo
+// /supabase/functions/projection-calc/index.ts
+// NÖUS Invest+ — Projeção Real de Investimentos
+// CDI + Selic + Retorno do Ativo (opcional via FMP)
+// Nunca usa IA — apenas matemática determinística
 
-import { serve } from "https://deno.land/x/sift@0.6.0/mod.ts";
+import { serve } from "https://deno.land/std@0.223.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const FMP_KEY = Deno.env.get("FMP_API_KEY") || "";
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SUPABASE_SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const FMP_KEY = Deno.env.get("FMP_API_KEY") || ""; // opcional
 
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE);
 
 /* ==========================================================
-   Helper — Busca taxa CDI/Selic/IPCA
-=========================================================== */
+   1) Carregar taxas de referência (CDI, Selic, IPCA, Prefixado)
+============================================================ */
 async function loadMarketRates() {
   const { data, error } = await supabase
     .from("market_reference_rates")
@@ -22,16 +23,16 @@ async function loadMarketRates() {
     .maybeSingle();
 
   if (error || !data) {
-    throw new Error("Falha ao carregar taxas de referência");
+    console.error("Erro ao carregar taxas:", error);
+    throw new Error("Falha ao carregar taxas de referência.");
   }
 
   return data;
 }
 
 /* ==========================================================
-   Retorno anualizado do ativo (opcional)
-   Usa FMP — NÖUS padrão
-=========================================================== */
+   2) Carregar retorno histórico anualizado do ativo via FMP
+============================================================ */
 async function loadAssetAnnualReturn(symbol: string | null): Promise<number | null> {
   if (!symbol || !FMP_KEY) return null;
 
@@ -42,35 +43,35 @@ async function loadAssetAnnualReturn(symbol: string | null): Promise<number | nu
 
     if (!Array.isArray(json) || json.length < 12) return null;
 
-    // cálcula retorno anual aproximado
     const first = json[json.length - 12].close;
     const last = json[0].close;
     const pct = (last - first) / first;
 
-    return pct; // exemplo: 0.12 = 12% ao ano
-  } catch {
+    return Number(pct);
+  } catch (err) {
+    console.error("Erro FMP:", err);
     return null;
   }
 }
 
 /* ==========================================================
-   Cálculo principal de projeção
-=========================================================== */
+   3) Cálculo determinístico da projeção mensal
+============================================================ */
 function computeProjection({
   initialAmount,
   monthlyAmount,
   months,
-  cdiRate,
-  assetReturn
+  cdiAnnual,
+  assetAnnualReturn
 }: {
   initialAmount: number;
   monthlyAmount: number;
   months: number;
-  cdiRate: number;       // ex: 0.13 = 13% a.a.
-  assetReturn: number | null;
+  cdiAnnual: number;
+  assetAnnualReturn: number | null;
 }) {
-  const monthlyCDI = Math.pow(1 + cdiRate, 1 / 12) - 1;
-  const monthlyAsset = assetReturn ? Math.pow(1 + assetReturn, 1 / 12) - 1 : 0;
+  const monthlyCDI = Math.pow(1 + cdiAnnual, 1 / 12) - 1;
+  const monthlyAsset = assetAnnualReturn ? Math.pow(1 + assetAnnualReturn, 1 / 12) - 1 : 0;
 
   const monthlyReturn = monthlyCDI + monthlyAsset;
 
@@ -83,7 +84,8 @@ function computeProjection({
 
     series.push({
       month: m,
-      value: Number(balance.toFixed(2))
+      value: Number(balance.toFixed(2)),
+      monthlyReturn: Number(monthlyReturn.toFixed(6))
     });
   }
 
@@ -91,62 +93,62 @@ function computeProjection({
 }
 
 /* ==========================================================
-   Handler principal
-=========================================================== */
-serve({
-  async POST(req) {
-    try {
-      const body = await req.json();
-
-      const initialAmount = Number(body.initialAmount || 0);
-      const monthlyAmount = Number(body.monthlyAmount || 0);
-      const months = Number(body.months || 0);
-      const assetSymbol = body.assetSymbol || null;
-
-      // 1. Carregar taxas
-      const rates = await loadMarketRates();
-      const cdi = Number(rates.cdi_daily || 0) * 252; // converte diário → anual aproximado
-
-      // 2. Retorno opcional do ativo
-      const assetReturn = await loadAssetAnnualReturn(assetSymbol);
-
-      // 3. Calcular projeção
-      const { series } = computeProjection({
-        initialAmount,
-        monthlyAmount,
-        months,
-        cdiRate: cdi,
-        assetReturn
-      });
-
-      return new Response(
-        JSON.stringify({
-          ok: true,
-          projection: {
-            initialAmount,
-            monthlyAmount,
-            months,
-            cdiRate: cdi,
-            assetReturn,
-            series
-          }
-        }),
-        { headers: { "Content-Type": "application/json" } }
-      );
-
-    } catch (err) {
-      return new Response(
-        JSON.stringify({ ok: false, error: err.message }),
-        { status: 500 }
-      );
-    }
-  },
-
-  // método proibido
-  async GET() {
+   4) Handler Oficial — Supabase Edge Runtime
+============================================================ */
+serve(async (req) => {
+  if (req.method !== "POST") {
     return new Response(
       JSON.stringify({ ok: false, error: "Use POST" }),
       { status: 405 }
+    );
+  }
+
+  try {
+    const body = await req.json();
+
+    const initialAmount = Number(body.initialAmount || 0);
+    const monthlyAmount = Number(body.monthlyAmount || 0);
+    const months = Number(body.months || 1);
+    const assetSymbol = body.assetSymbol || null;
+
+    // 1. Taxas base (CDI, Selic, IPCA)
+    const rates = await loadMarketRates();
+
+    // CDI diário → CDI anual aproximado
+    const cdiAnnual = Number(rates.cdi_daily || 0) * 252;
+
+    // 2. Retorno do ativo (opcional)
+    const assetAnnualReturn = await loadAssetAnnualReturn(assetSymbol);
+
+    // 3. Cálculo da projeção
+    const { series } = computeProjection({
+      initialAmount,
+      monthlyAmount,
+      months,
+      cdiAnnual,
+      assetAnnualReturn
+    });
+
+    return new Response(
+      JSON.stringify({
+        ok: true,
+        projection: {
+          initialAmount,
+          monthlyAmount,
+          months,
+          cdiAnnual,
+          assetAnnualReturn,
+          series
+        }
+      }),
+      { headers: { "Content-Type": "application/json" } }
+    );
+
+  } catch (err) {
+    console.error(err);
+    return new Response(
+      JSON.stringify({ ok: false, error: String(err) }),
+      { status: 500 }
     );
   }
 });

@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "strict": true
+  },
+
+  // Permissões obrigatórias
+  "deno": {
+    "permissions": {
+      "env": [
+        "DEEPSEEK_API_KEY"
+      ],
+      "net": [
+        "api.deepseek.com"
+      ]
+    }
+  },
+
+  // Entry point
+  "tasks": {
+    "start": "deno run --allow-net --allow-env index.ts"
+  },
+
+  "imports": {
+    // Recomendado pelo Supabase para edge functions
+    "serve": "https://deno.land/x/sift@0.6.0/mod.ts"
+  }
+}

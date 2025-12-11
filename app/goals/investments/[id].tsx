@@ -1,4 +1,3 @@
-// app/goals/[id].tsx
 import React, { useMemo } from "react";
 import {
   View,
@@ -37,6 +36,7 @@ import GoalsInsightsCard from "@/components/app/goals/GoalsInsightsCard";
 // HOOKS
 import { useGoals } from "@/hooks/useGoals";
 import { useGoalsInsights } from "@/hooks/useGoalsInsights";
+import { useUserPlan } from "@/hooks/useUserPlan";
 
 const brandFont = Platform.select({
   ios: "SF Pro Display",
@@ -61,27 +61,26 @@ function buildInvestmentSeries(goal: any): SeriesMap {
 
   const parse = (d: string) => new Date(d);
 
-  const filterUntilDaysAhead = (days: number) => {
+  const filterDays = (days: number) => {
     const limit = new Date(now);
     limit.setDate(limit.getDate() + days);
     return curve.filter((p) => parse(p.date) <= limit);
   };
 
-  const filterUntilMonthsAhead = (months: number) => {
+  const filterMonths = (months: number) => {
     const limit = new Date(now);
     limit.setMonth(limit.getMonth() + months);
     return curve.filter((p) => parse(p.date) <= limit);
   };
 
-  const ensure = (arr: SeriesPoint[]): SeriesPoint[] =>
-    arr.length ? arr : curve;
+  const ensure = (arr: SeriesPoint[]): SeriesPoint[] => (arr.length ? arr : curve);
 
   return {
-    "1D": ensure(filterUntilDaysAhead(1)),
-    "1S": ensure(filterUntilDaysAhead(7)),
-    "1M": ensure(filterUntilMonthsAhead(1)),
-    "3M": ensure(filterUntilMonthsAhead(3)),
-    "1Y": ensure(filterUntilMonthsAhead(12)),
+    "1D": ensure(filterDays(1)),
+    "1S": ensure(filterDays(7)),
+    "1M": ensure(filterMonths(1)),
+    "3M": ensure(filterMonths(3)),
+    "1Y": ensure(filterMonths(12)),
     ALL: curve,
   };
 }
@@ -89,25 +88,12 @@ function buildInvestmentSeries(goal: any): SeriesMap {
 export default function GoalDetailScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ id?: string }>();
+  const { isPro } = useUserPlan();
 
   const rawId = params?.id ?? null;
   const goalId = rawId === "create" ? null : rawId;
 
   const { loading, goals, debts, investments, reload } = useGoals();
-  const { insights } = useGoalsInsights();
-
-  /* ============================================================
-     RELOAD ao focar — versão corrigida com delay
-============================================================ */
-  useFocusEffect(
-    React.useCallback(() => {
-      const timeout = setTimeout(() => {
-        reload(); // garante atualização pós-navegação
-      }, 120);
-
-      return () => clearTimeout(timeout);
-    }, [])
-  );
 
   /* ============================================================
      ENCONTRAR ITEM
@@ -128,17 +114,33 @@ export default function GoalDetailScreen() {
   const hasInstallments = (goal?.installments ?? []).length > 0;
 
   /* ============================================================
-     BACK HANDLER COM RELOAD
+     DEFINIR QUAL INSIGHT CHAMAR (baseado no tipo da meta)
+============================================================ */
+  const detailTab =
+    isDebt ? "debts" : isInvestment ? "investments" : "goals";
+
+  const { insights } = useGoalsInsights(detailTab);
+
+  /* ============================================================
+     RELOAD AO FOCAR
+============================================================ */
+  useFocusEffect(
+    React.useCallback(() => {
+      const timeout = setTimeout(() => {
+        reload();
+      }, 120);
+
+      return () => clearTimeout(timeout);
+    }, [])
+  );
+
+  /* ============================================================
+     BACK HANDLER
 ============================================================ */
   const handleBack = () => {
-    // "push reload": garante que o estado global de metas esteja atualizado
     reload();
-
-    if (router.canGoBack()) {
-      router.back();
-    } else {
-      router.replace("/goals");
-    }
+    if (router.canGoBack()) router.back();
+    else router.replace("/goals");
   };
 
   /* ============================================================
@@ -164,7 +166,7 @@ export default function GoalDetailScreen() {
   }
 
   /* ============================================================
-     SERIES (INVESTIMENTO)
+     SERIES — INVESTIMENTO
 ============================================================ */
   const series: SeriesMap = isInvestment
     ? buildInvestmentSeries(goal)
@@ -258,8 +260,12 @@ export default function GoalDetailScreen() {
           {!insights || insights.length === 0 ? (
             <Text style={styles.noInsights}>Nenhum insight disponível.</Text>
           ) : (
-            insights.map((item, i) => (
-              <GoalsInsightsCard key={i} item={item} />
+            insights.map((insight, i) => (
+              <GoalsInsightsCard
+                key={insight.id ?? i}
+                insight={insight}
+                isPro={isPro}
+              />
             ))
           )}
         </View>
