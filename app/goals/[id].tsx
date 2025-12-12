@@ -1,5 +1,4 @@
-// app/goals/[id].tsx
-import React, { useMemo } from "react";
+import React, { useMemo, useCallback } from "react";
 import {
   View,
   Text,
@@ -37,6 +36,7 @@ import GoalsInsightsCard from "@/components/app/goals/GoalsInsightsCard";
 // HOOKS
 import { useGoals } from "@/hooks/useGoals";
 import { useGoalsInsights } from "@/hooks/useGoalsInsights";
+import { useIncomeSources } from "@/hooks/useIncomeSources";
 import { useUserPlan } from "@/hooks/useUserPlan";
 
 const brandFont = Platform.select({
@@ -46,43 +46,27 @@ const brandFont = Platform.select({
 });
 
 /* ============================================================
-   HELPERS — construir séries estilo Apple Stocks
+   HELPERS — séries Apple Stocks
 ============================================================ */
 function buildInvestmentSeries(goal: any): SeriesMap {
-  const now = new Date();
-  const todayISO = now.toISOString().split("T")[0];
+  const todayISO = new Date().toISOString().split("T")[0];
 
-  const basePoint: SeriesPoint = {
+  const base: SeriesPoint = {
     date: todayISO,
     value: Number(goal?.currentAmount ?? 0),
   };
 
-  const futureCurve: SeriesPoint[] = goal?.projection?.curveFuture ?? [];
-  const curve: SeriesPoint[] = [basePoint, ...futureCurve];
+  const future = goal?.projection?.curveFuture ?? [];
+  const curve = [base, ...future];
 
-  const parse = (d: string) => new Date(d);
-
-  const filterUntilDaysAhead = (days: number) => {
-    const limit = new Date(now);
-    limit.setDate(limit.getDate() + days);
-    return curve.filter((p) => parse(p.date) <= limit);
-  };
-
-  const filterUntilMonthsAhead = (months: number) => {
-    const limit = new Date(now);
-    limit.setMonth(limit.getMonth() + months);
-    return curve.filter((p) => parse(p.date) <= limit);
-  };
-
-  const ensure = (arr: SeriesPoint[]): SeriesPoint[] =>
-    arr.length ? arr : curve;
+  const ensure = (arr: SeriesPoint[]) => (arr.length ? arr : curve);
 
   return {
-    "1D": ensure(filterUntilDaysAhead(1)),
-    "1S": ensure(filterUntilDaysAhead(7)),
-    "1M": ensure(filterUntilMonthsAhead(1)),
-    "3M": ensure(filterUntilMonthsAhead(3)),
-    "1Y": ensure(filterUntilMonthsAhead(12)),
+    "1D": ensure(curve),
+    "1S": ensure(curve),
+    "1M": ensure(curve),
+    "3M": ensure(curve),
+    "1Y": ensure(curve),
     ALL: curve,
   };
 }
@@ -92,22 +76,36 @@ export default function GoalDetailScreen() {
   const params = useLocalSearchParams<{ id?: string }>();
   const { isPro } = useUserPlan();
 
-  const rawId = params?.id ?? null;
-  const goalId = rawId === "create" ? null : rawId;
+  const goalId = params?.id && params.id !== "create" ? params.id : null;
 
-  const { loading, goals, debts, investments, reload } = useGoals();
+  /* ============================================================
+     DADOS — NORMALIZAÇÃO OBRIGATÓRIA
+  ============================================================ */
+  const {
+    loading,
+    goals: rawGoals,
+    debts: rawDebts,
+    investments: rawInvestments,
+    reload,
+  } = useGoals();
+
+  const goals = Array.isArray(rawGoals) ? rawGoals : [];
+  const debts = Array.isArray(rawDebts) ? rawDebts : [];
+  const investments = Array.isArray(rawInvestments) ? rawInvestments : [];
+
+  const { incomeSources } = useIncomeSources();
 
   /* ============================================================
      RELOAD AO FOCAR
   ============================================================ */
   useFocusEffect(
-    React.useCallback(() => {
+    useCallback(() => {
       reload();
     }, [reload])
   );
 
   /* ============================================================
-     ENCONTRAR ITEM
+     LOCALIZAR ITEM (AGORA 100% SEGURO)
   ============================================================ */
   const goal = useMemo(() => {
     if (!goalId) return null;
@@ -122,15 +120,69 @@ export default function GoalDetailScreen() {
 
   const isDebt = goal?.type === "debt";
   const isInvestment = goal?.type === "investment";
+  const isGoal = goal?.type === "goal";
   const hasInstallments = (goal?.installments ?? []).length > 0;
 
   /* ============================================================
-     DEFINIR TIPO DE INSIGHT (detalhe)
+     INSIGHTS
   ============================================================ */
-  const detailTab =
+  const tab: "goals" | "debts" | "investments" =
     isDebt ? "debts" : isInvestment ? "investments" : "goals";
 
-  const { insights } = useGoalsInsights(detailTab);
+  const { insights, loading: insightsLoading } = useGoalsInsights({
+    tab,
+    goals,
+    debts,
+    investments,
+    incomeSources,
+  });
+
+  /* ============================================================
+     HANDLERS DE AÇÃO
+  ============================================================ */
+  const goEdit = () => {
+    if (!goal) return;
+
+    if (isInvestment) {
+      router.push(`/goals/investments/edit?id=${goal.id}`);
+      return;
+    }
+
+    if (isDebt) {
+      router.push(`/goals/details/debt-edit?id=${goal.id}`);
+      return;
+    }
+
+    router.push(`/goals/details/edit?id=${goal.id}`);
+  };
+
+  const goAddContribution = () => {
+    if (!goal) return;
+
+    if (isInvestment) {
+      router.push(`/goals/investments/contribution?id=${goal.id}`);
+      return;
+    }
+
+    if (isGoal) {
+      router.push(`/goals/details/add?id=${goal.id}`);
+    }
+  };
+
+  const goAddInstallment = () => {
+    if (!goal || !isDebt) return;
+    router.push(`/goals/details/debt-add-installment?id=${goal.id}`);
+  };
+
+  const goPayDebt = () => {
+    if (!goal || !isDebt) return;
+    router.push(`/goals/details/debt-pay?id=${goal.id}`);
+  };
+
+  const goSettleDebt = () => {
+    if (!goal || !isDebt) return;
+    router.push(`/goals/details/debt-settle?id=${goal.id}`);
+  };
 
   /* ============================================================
      LOADING / NOT FOUND
@@ -146,7 +198,7 @@ export default function GoalDetailScreen() {
   if (!goal) {
     return (
       <Screen style={styles.center}>
-        <Text style={styles.notFound}>Meta não encontrada.</Text>
+        <Text style={styles.notFound}>Item não encontrado.</Text>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Text style={styles.backText}>Voltar</Text>
         </TouchableOpacity>
@@ -173,94 +225,75 @@ export default function GoalDetailScreen() {
   ============================================================ */
   return (
     <Screen>
-      <View style={{ flex: 1 }}>
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 140 }}
-        >
-          {/* HEADER */}
-          <View style={styles.headerRow}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
-              <Icon name="chevron-back" size={22} color="#fff" />
-            </TouchableOpacity>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 140 }}
+      >
+        {/* HEADER */}
+        <View style={styles.headerRow}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
+            <Icon name="chevron-back" size={22} color="#fff" />
+          </TouchableOpacity>
 
-            <Text style={styles.title}>{goal.title}</Text>
+          <Text style={styles.title}>{goal.title}</Text>
+          <View style={{ width: 32 }} />
+        </View>
 
-            <View style={{ width: 32 }} />
-          </View>
+        {/* META / DÍVIDA */}
+        {isDebt ? (
+          <GoalDebtMainCard
+            debt={goal}
+            showSettleButton
+            onPressPay={goPayDebt}
+            onPressEdit={goEdit}
+            onPressSettle={goSettleDebt}
+          />
+        ) : !isInvestment ? (
+          <GoalMainCard
+            goal={goal}
+            isPro={isPro}
+            onPressDetails={goAddContribution}
+            onPressEdit={goEdit}
+            onPressAddInstallment={goAddInstallment}
+          />
+        ) : null}
 
-          {/* META / DÍVIDA */}
-          {isDebt ? (
-            <GoalDebtMainCard
-              debt={goal}
-              showSettleButton
-              onPressPay={() =>
-                router.push(`/goals/details/debt-pay?id=${goal.id}`)
-              }
-              onPressEdit={() =>
-                router.push(`/goals/details/debt-edit?id=${goal.id}`)
-              }
-              onPressSettle={() =>
-                router.push(`/goals/details/debt-settle?id=${goal.id}`)
-              }
-            />
-          ) : !isInvestment ? (
-            <GoalMainCard
+        {/* INVESTIMENTO */}
+        {isInvestment && (
+          <View style={{ marginTop: 20, paddingHorizontal: 18 }}>
+            <InvestmentMainBlock
               goal={goal}
-              onPressDetails={() =>
-                router.push(`/goals/details/add?id=${goal.id}`)
-              }
-              onPressEdit={() =>
-                router.push(`/goals/details/edit?id=${goal.id}`)
-              }
+              series={series}
+              onPressAdd={goAddContribution}
+              onPressEdit={goEdit}
             />
-          ) : null}
-
-          {/* INVESTIMENTO */}
-          {isInvestment && (
-            <View style={{ marginTop: 20, paddingHorizontal: 18 }}>
-              <InvestmentMainBlock
-                goal={goal}
-                series={series}
-                onPressAdd={() =>
-                  router.push({
-                    pathname: "/goals/investments/contribution",
-                    params: { goalId: goal.id },
-                  })
-                }
-                onPressEdit={() =>
-                  router.push({
-                    pathname: "/goals/investments/edit",
-                    params: { goalId: goal.id },
-                  })
-                }
-              />
-            </View>
-          )}
-
-          {/* PARCELAS */}
-          {hasInstallments && (
-            <GoalInstallmentsTimeline installments={goal.installments} />
-          )}
-
-          {/* INSIGHTS */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Insights</Text>
-
-            {!insights || insights.length === 0 ? (
-              <Text style={styles.noInsights}>Nenhum insight disponível.</Text>
-            ) : (
-              insights.map((insight, i) => (
-                <GoalsInsightsCard
-                  key={insight.id ?? i}
-                  insight={insight}
-                  isPro={isPro}
-                />
-              ))
-            )}
           </View>
-        </ScrollView>
-      </View>
+        )}
+
+        {/* PARCELAS */}
+        {hasInstallments && (
+          <GoalInstallmentsTimeline installments={goal.installments} />
+        )}
+
+        {/* INSIGHTS */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Insights</Text>
+
+          {insightsLoading ? (
+            <Text style={styles.noInsights}>Carregando insights...</Text>
+          ) : insights.length === 0 ? (
+            <Text style={styles.noInsights}>Nenhum insight disponível.</Text>
+          ) : (
+            insights.map((insight, i) => (
+              <GoalsInsightsCard
+                key={insight.id ?? i}
+                insight={insight}
+                isPro={isPro}
+              />
+            ))
+          )}
+        </View>
+      </ScrollView>
     </Screen>
   );
 }
@@ -274,7 +307,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-
   headerRow: {
     paddingTop: 10,
     paddingBottom: 20,
@@ -283,7 +315,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-
   iconBtn: {
     width: 36,
     height: 36,
@@ -291,19 +322,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-
   title: {
     fontFamily: brandFont,
     fontSize: 20,
     color: "#fff",
     fontWeight: "600",
   },
-
   section: {
     marginTop: 30,
     paddingHorizontal: 18,
   },
-
   sectionTitle: {
     fontFamily: brandFont,
     fontSize: 17,
@@ -311,27 +339,23 @@ const styles = StyleSheet.create({
     color: "#fff",
     marginBottom: 12,
   },
-
   noInsights: {
     fontFamily: brandFont,
     fontSize: 15,
     color: "rgba(255,255,255,0.45)",
   },
-
   notFound: {
     fontFamily: brandFont,
     fontSize: 18,
     color: "#fff",
     marginBottom: 14,
   },
-
   backBtn: {
     paddingVertical: 10,
     paddingHorizontal: 22,
     borderRadius: 12,
     backgroundColor: "rgba(255,255,255,0.10)",
   },
-
   backText: {
     color: "#fff",
     fontSize: 16,

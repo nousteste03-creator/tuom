@@ -21,19 +21,13 @@ const brandFont = Platform.select({
 type Props = {
   goal: GoalWithStats;
   isPro?: boolean;
-  /** Detalhes do investimento (tocar no card ou no texto "Detalhes") */
-  onPress?: () => void;
-  /** Registrar novo aporte */
-  onPressAportar?: () => void;
-  /** Editar investimento */
-  onPressEdit?: () => void;
+  /** Navega para /goals/investments/[id] */
+  onPress: () => void;
 };
 
-/**
- * Sparkline simples usando apenas Views
- * - Não adiciona nenhuma dependência nova (seguro)
- * - Estilo Apple Stocks minimal: linha branca fina
- */
+/* -----------------------------------------------------------
+   Sparkline simples (preview visual apenas)
+----------------------------------------------------------- */
 function InvestmentSparkline({
   points,
 }: {
@@ -52,33 +46,32 @@ function InvestmentSparkline({
   const max = Math.max(...values);
   const range = max - min || 1;
 
-  const normalized = values.map((v) => (v - min) / range);
-
   return (
     <View style={styles.sparklineContainer}>
-      {normalized.map((n, idx) => (
-        <View key={idx} style={styles.sparklinePointWrapper}>
-          <View
-            style={[
-              styles.sparklinePoint,
-              {
-                // altura baseada no valor normalizado
-                height: 8 + n * 18, // 8–26 px
-              },
-            ]}
-          />
-        </View>
-      ))}
+      {values.map((v, idx) => {
+        const n = (v - min) / range;
+        return (
+          <View key={idx} style={styles.sparklinePointWrapper}>
+            <View
+              style={[
+                styles.sparklinePoint,
+                { height: 8 + n * 18 },
+              ]}
+            />
+          </View>
+        );
+      })}
     </View>
   );
 }
 
+/* -----------------------------------------------------------
+   COMPONENT
+----------------------------------------------------------- */
 export default function GoalInvestmentMainCard({
   goal,
   isPro,
   onPress,
-  onPressAportar,
-  onPressEdit,
 }: Props) {
   const {
     title,
@@ -109,9 +102,7 @@ export default function GoalInvestmentMainCard({
     const date = projection?.projectedEndDate;
     if (!date) return "Sem previsão definida";
     try {
-      const d = new Date(date);
-      if (Number.isNaN(d.getTime())) return "Sem previsão definida";
-      return `Previsto para ${d.toLocaleDateString("pt-BR")}`;
+      return `Previsto para ${new Date(date).toLocaleDateString("pt-BR")}`;
     } catch {
       return "Sem previsão definida";
     }
@@ -123,18 +114,14 @@ export default function GoalInvestmentMainCard({
     return `Aporte mensal: ${currency(v)}`;
   }, [projection?.monthly, goal.autoRuleMonthly, currency]);
 
-  const handleDetails = () => {
-    onPress?.();
-  };
-
   return (
     <TouchableOpacity
       activeOpacity={0.9}
-      onPress={handleDetails}
+      onPress={onPress}
       style={{ marginHorizontal: 16, marginTop: 12 }}
     >
       <BlurView intensity={30} tint="dark" style={styles.card}>
-        {/* TOPO: TÍTULO + PROGRESSO DISCRETO */}
+        {/* HEADER */}
         <View style={styles.headerRow}>
           <View style={{ flex: 1 }}>
             <Text style={styles.title} numberOfLines={1}>
@@ -143,7 +130,6 @@ export default function GoalInvestmentMainCard({
             <Text style={styles.progressLabel}>{progressLabel}</Text>
           </View>
 
-          {/* Badge PRO opcional */}
           {isPro && (
             <View style={styles.proBadge}>
               <Text style={styles.proBadgeText}>PRO</Text>
@@ -151,21 +137,21 @@ export default function GoalInvestmentMainCard({
           )}
         </View>
 
-        {/* VALOR ATUAL + META ABAIXO (ESTILO APPLE STOCKS) */}
+        {/* VALORES */}
         <View style={styles.valueBlock}>
-          <Text style={styles.currentValue}>{currency(currentAmount || 0)}</Text>
+          <Text style={styles.currentValue}>
+            {currency(currentAmount || 0)}
+          </Text>
           <Text style={styles.targetLabel}>
             Meta: {currency(targetAmount || 0)}
           </Text>
         </View>
 
-        {/* SPARKLINE + META / DATA PREVISTA */}
+        {/* SPARKLINE */}
         <View style={styles.middleRow}>
-          <View style={{ flex: 1 }}>
-            <InvestmentSparkline
-              points={projection?.curveFuture ?? []}
-            />
-          </View>
+          <InvestmentSparkline
+            points={projection?.curveFuture ?? []}
+          />
 
           <View style={styles.middleInfo}>
             <Text style={styles.smallLabel}>{aporteMensalLabel}</Text>
@@ -173,45 +159,18 @@ export default function GoalInvestmentMainCard({
           </View>
         </View>
 
-        {/* AÇÕES: APENAS TEXTO CLICÁVEL */}
-        <View style={styles.actionsRow}>
-          <TouchableOpacity
-            activeOpacity={0.7}
-            onPress={onPressAportar}
-            style={styles.actionTouch}
-          >
-            <Text style={styles.actionText}>Aportar</Text>
-          </TouchableOpacity>
-
-          <View style={styles.actionDivider} />
-
-          <TouchableOpacity
-            activeOpacity={0.7}
-            onPress={onPressEdit}
-            style={styles.actionTouch}
-          >
-            <Text style={styles.actionText}>Editar</Text>
-          </TouchableOpacity>
-
-          <View style={styles.actionDivider} />
-
-          <TouchableOpacity
-            activeOpacity={0.7}
-            onPress={handleDetails}
-            style={styles.actionTouch}
-          >
-            <Text style={styles.actionText}>Detalhes</Text>
-          </TouchableOpacity>
+        {/* CTA DISCRETO */}
+        <View style={styles.footerHint}>
+          <Text style={styles.footerText}>Ver detalhes do investimento</Text>
         </View>
       </BlurView>
     </TouchableOpacity>
   );
 }
 
-/* ============================================================
-   STYLES — Apple Stocks Glass
-============================================================ */
-
+/* -----------------------------------------------------------
+   STYLES
+----------------------------------------------------------- */
 const styles = StyleSheet.create({
   card: {
     borderRadius: 24,
@@ -253,7 +212,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "600",
     color: "#FFFFFF",
-    letterSpacing: 0.5,
   },
 
   valueBlock: {
@@ -283,7 +241,6 @@ const styles = StyleSheet.create({
 
   middleInfo: {
     marginLeft: 12,
-    justifyContent: "flex-start",
     alignItems: "flex-end",
   },
 
@@ -306,7 +263,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-end",
     height: 28,
-    overflow: "hidden",
   },
 
   sparklinePointWrapper: {
@@ -333,29 +289,17 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.4)",
   },
 
-  actionsRow: {
-    flexDirection: "row",
-    alignItems: "center",
+  footerHint: {
     marginTop: 14,
     borderTopWidth: 1,
     borderTopColor: "rgba(255,255,255,0.06)",
     paddingTop: 10,
-  },
-
-  actionTouch: {
-    flex: 1,
     alignItems: "center",
   },
 
-  actionText: {
+  footerText: {
     fontFamily: brandFont,
     fontSize: 13,
-    color: "rgba(255,255,255,0.9)",
-  },
-
-  actionDivider: {
-    width: 1,
-    height: 16,
-    backgroundColor: "rgba(255,255,255,0.12)",
+    color: "rgba(255,255,255,0.7)",
   },
 });

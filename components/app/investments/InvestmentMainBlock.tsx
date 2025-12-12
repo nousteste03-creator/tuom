@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -8,13 +8,13 @@ import {
 } from "react-native";
 import { BlurView } from "expo-blur";
 
-import InvestmentTimeframesPanel, {
-  TimeframeKey,
-  SeriesMap,
-} from "./InvestmentTimeframesPanel";
-
 import InvestmentHero from "./InvestmentHero";
 import InvestmentKPISection from "./InvestmentKPISection";
+import InvestmentEvolutionLayers from "./InvestmentEvolutionLayers";
+
+/* ------------------------------------------------------------
+   CONFIG
+------------------------------------------------------------ */
 
 const brandFont = Platform.select({
   ios: "SF Pro Display",
@@ -22,68 +22,133 @@ const brandFont = Platform.select({
   default: "System",
 });
 
+/* ------------------------------------------------------------
+   TIPOS
+------------------------------------------------------------ */
+
+export type TimeframeKey = "1D" | "1S" | "1M" | "3M" | "1Y" | "ALL";
+
 type Props = {
+  /** Investimento completo (goal do tipo investment) */
   goal: any;
-  series: SeriesMap;
+
+  /** Registrar aporte */
   onPressAdd: () => void;
+
+  /** Editar investimento */
   onPressEdit: () => void;
 };
 
+/* ------------------------------------------------------------
+   COMPONENT
+------------------------------------------------------------ */
+
 export default function InvestmentMainBlock({
   goal,
-  series,
   onPressAdd,
   onPressEdit,
 }: Props) {
+  /* ----------------------------------------------------------
+     GUARD
+  ---------------------------------------------------------- */
+  if (!goal) {
+    console.warn("[InvestmentMainBlock] goal ausente");
+    return null;
+  }
+
+  /* ----------------------------------------------------------
+     STATE
+  ---------------------------------------------------------- */
+  const [timeframe, setTimeframe] = useState<TimeframeKey>("1M");
+
   const progressPercent = goal.progressPercent ?? 0;
 
-  /* ------------------------------------------------------------
-     Callbacks apenas para futuro (logs / IA etc.)
-  ------------------------------------------------------------ */
-  const handleTimeframeChange = useCallback((tf: TimeframeKey) => {
-    console.log("[TIMEFRAME]", tf);
-  }, []);
+  /* ----------------------------------------------------------
+     DADOS BASE (FONTE ÚNICA)
+  ---------------------------------------------------------- */
+  const currentAmount = Number(goal.currentAmount ?? 0);
+  const targetAmount = Number(goal.targetAmount ?? 0);
 
-  const handlePointChange = useCallback(
-    (p: { value: number; date: string; range: TimeframeKey }) => {
-      console.log("[POINT]", p);
-    },
-    []
-  );
+  /**
+   * Aporte mensal real:
+   * 1) autoRuleMonthly (definido pelo usuário)
+   * 2) fallback para projection.monthly (calculado)
+   */
+  const monthlyContribution =
+    goal.autoRuleMonthly ??
+    goal.projection?.monthly ??
+    null;
 
-  /* ------------------------------------------------------------
+  const endDate = goal.endDate ?? null;
+
+  /* ----------------------------------------------------------
      RENDER
-  ------------------------------------------------------------ */
+  ---------------------------------------------------------- */
   return (
     <BlurView intensity={35} tint="dark" style={styles.card}>
-      {/* HERO – sempre valor REAL do investimento */}
+      {/* HERO — valor REAL */}
       <InvestmentHero
         title={goal.title}
-        currentValue={goal.currentAmount}
-        targetValue={goal.targetAmount}
+        currentValue={currentAmount}
+        targetValue={targetAmount}
         progressPercent={progressPercent}
       />
 
       {/* AÇÕES */}
       <View style={styles.actionsRow}>
-        <TouchableOpacity style={styles.actionBtn} onPress={onPressAdd}>
+        <TouchableOpacity
+          style={styles.actionBtn}
+          onPress={onPressAdd}
+          activeOpacity={0.85}
+        >
           <Text style={styles.actionText}>Registrar aporte</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionBtn} onPress={onPressEdit}>
+        <TouchableOpacity
+          style={styles.actionBtn}
+          onPress={onPressEdit}
+          activeOpacity={0.85}
+        >
           <Text style={styles.actionText}>Editar</Text>
         </TouchableOpacity>
       </View>
 
-      {/* TIMEFRAMES + GRÁFICO (valores FUTUROS/projeção) */}
-      <InvestmentTimeframesPanel
-        series={series}
-        lineColor="#7FC5FF"
-        onTimeframeChange={handleTimeframeChange}
-        onPointChange={handlePointChange}
+      {/* SEGMENTED — TIMEFRAMES */}
+      <View style={styles.segmentedRow}>
+        {(["1D", "1S", "1M", "3M", "1Y", "ALL"] as TimeframeKey[]).map(
+          (tf) => (
+            <TouchableOpacity
+              key={tf}
+              style={[
+                styles.segmentItem,
+                timeframe === tf && styles.segmentItemActive,
+              ]}
+              onPress={() => setTimeframe(tf)}
+              activeOpacity={0.8}
+            >
+              <Text
+                style={[
+                  styles.segmentText,
+                  timeframe === tf && styles.segmentTextActive,
+                ]}
+              >
+                {tf}
+              </Text>
+            </TouchableOpacity>
+          )
+        )}
+      </View>
+
+      {/* EVOLUÇÃO POR CAMADAS — DERIVADA */}
+      <InvestmentEvolutionLayers
+        currentAmount={currentAmount}
+        targetAmount={targetAmount}
+        monthlyContribution={monthlyContribution}
+        timeframe={timeframe}
+        endDate={endDate}
       />
 
-      {/* KPIs – usa projeção real calculada no hook */}
+      {/* KPIs */}
       <InvestmentKPISection
         projection={goal.projection}
         remainingAmount={goal.remainingAmount}
@@ -93,7 +158,9 @@ export default function InvestmentMainBlock({
   );
 }
 
-/* ------------------------------------------------------------ */
+/* ------------------------------------------------------------
+   STYLES
+------------------------------------------------------------ */
 
 const styles = StyleSheet.create({
   card: {
@@ -110,7 +177,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     marginTop: 14,
-    marginBottom: 22,
+    marginBottom: 18,
   },
 
   actionBtn: {
@@ -126,6 +193,38 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontFamily: brandFont,
     fontSize: 14,
+    fontWeight: "600",
+  },
+
+  /* SEGMENTED */
+  segmentedRow: {
+    flexDirection: "row",
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 18,
+    paddingHorizontal: 6,
+    paddingVertical: 6,
+    marginBottom: 16,
+  },
+
+  segmentItem: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 4,
+    borderRadius: 14,
+  },
+
+  segmentItemActive: {
+    backgroundColor: "rgba(255,255,255,0.16)",
+  },
+
+  segmentText: {
+    fontFamily: brandFont,
+    fontSize: 11,
+    color: "rgba(255,255,255,0.55)",
+  },
+
+  segmentTextActive: {
+    color: "#FFFFFF",
     fontWeight: "600",
   },
 });

@@ -1,3 +1,4 @@
+// app/goals/investments/edit.tsx
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   View,
@@ -30,12 +31,9 @@ const brandFont = Platform.select({
 });
 
 /* ---------------------------------------------------------
-    HELPERS
+   HELPERS
 --------------------------------------------------------- */
-function fmtName(n: string) {
-  return n?.trim() || "Sem nome";
-}
-function fmtNum(n: number | null | undefined) {
+function fmtCurrency(n?: number | null) {
   if (!n || isNaN(n)) return "R$ 0,00";
   return new Intl.NumberFormat("pt-BR", {
     style: "currency",
@@ -44,17 +42,18 @@ function fmtNum(n: number | null | undefined) {
 }
 
 /* ---------------------------------------------------------
-    COMPONENTE
+   COMPONENTE
 --------------------------------------------------------- */
 export default function InvestmentEditScreen() {
   const router = useRouter();
-  const { goalId } = useLocalSearchParams<{ goalId?: string }>();
+  const { id } = useLocalSearchParams<{ id?: string }>();
+  const investmentId = id ?? null;
 
   const { investments, loading, reload, updateGoal } = useGoals();
 
   const investment = useMemo(
-    () => investments.find((i) => i.id === goalId),
-    [investments, goalId]
+    () => investments.find((i) => i.id === investmentId),
+    [investments, investmentId]
   );
 
   /* ---------------------------------------------------------
@@ -79,30 +78,24 @@ export default function InvestmentEditScreen() {
   useEffect(() => {
     if (!investment) return;
 
-    setName(investment.title ?? investment.name ?? "");
-
+    setName(investment.title ?? "");
     setCurrentInput(
-      investment.currentAmount
+      investment.currentAmount != null
         ? String(investment.currentAmount).replace(".", ",")
         : ""
     );
-
     setMonthlyInput(
-      investment.autoRuleMonthly
+      investment.autoRuleMonthly != null
         ? String(investment.autoRuleMonthly).replace(".", ",")
         : ""
     );
-
     setDeadline(investment.endDate ?? "");
   }, [investment]);
 
   /* ---------------------------------------------------------
-      ANIMAÇÃO
+      ANIMATION
   --------------------------------------------------------- */
   useEffect(() => {
-    stepOpacity.setValue(0.7);
-    stepScale.setValue(0.97);
-
     Animated.parallel([
       Animated.spring(translateX, {
         toValue: -step * INNER_WIDTH,
@@ -133,46 +126,39 @@ export default function InvestmentEditScreen() {
     const v = parseFloat(
       currentInput.replace(/\./g, "").replace(",", ".")
     );
-    return isNaN(v) ? null : v;
+    return isNaN(v) ? undefined : v;
   }, [currentInput]);
 
   const parsedMonthly = useMemo(() => {
     const v = parseFloat(
       monthlyInput.replace(/\./g, "").replace(",", ".")
     );
-    return isNaN(v) ? null : v;
+    return isNaN(v) ? undefined : v;
   }, [monthlyInput]);
 
   /* ---------------------------------------------------------
-      VALIDATION
+      GUARDS
   --------------------------------------------------------- */
-  if (!goalId) {
+  if (!investmentId) {
     return (
-      <Screen>
-        <View style={styles.center}>
-          <Text style={styles.err}>ID inválido</Text>
-        </View>
+      <Screen style={styles.center}>
+        <Text style={styles.err}>Investimento inválido.</Text>
       </Screen>
     );
   }
 
   if (loading && !investment) {
     return (
-      <Screen>
-        <View style={styles.center}>
-          <ActivityIndicator color="#fff" />
-          <Text style={styles.subtitle}>Carregando...</Text>
-        </View>
+      <Screen style={styles.center}>
+        <ActivityIndicator color="#fff" />
       </Screen>
     );
   }
 
   if (!investment) {
     return (
-      <Screen>
-        <View style={styles.center}>
-          <Text style={styles.err}>Investimento não encontrado.</Text>
-        </View>
+      <Screen style={styles.center}>
+        <Text style={styles.err}>Investimento não encontrado.</Text>
       </Screen>
     );
   }
@@ -184,19 +170,18 @@ export default function InvestmentEditScreen() {
     try {
       setSaving(true);
 
-      await updateGoal(String(goalId), {
+      await updateGoal(investment.id, {
         title: name.trim(),
-        currentAmount: parsedCurrent ?? undefined,
-        autoRuleMonthly: parsedMonthly ?? undefined,
+        currentAmount: parsedCurrent,
+        autoRuleMonthly: parsedMonthly,
         endDate: deadline || null,
       });
 
       await reload();
 
       Alert.alert("Pronto", "Investimento atualizado.");
-      router.replace(`/goals/${goalId}`);
+      router.replace(`/goals/investments/${investment.id}`);
     } catch (e) {
-      console.error(e);
       Alert.alert("Erro", "Erro inesperado.");
     } finally {
       setSaving(false);
@@ -204,38 +189,30 @@ export default function InvestmentEditScreen() {
   }
 
   /* ---------------------------------------------------------
-      DELETE (CORRETO)
+      DELETE
   --------------------------------------------------------- */
-  async function handleDelete() {
+  function handleDelete() {
     Alert.alert(
       "Excluir investimento",
-      "Tem certeza que deseja excluir? Essa ação não pode ser desfeita.",
+      "Essa ação não pode ser desfeita.",
       [
         { text: "Cancelar", style: "cancel" },
         {
           text: "Excluir",
           style: "destructive",
           onPress: async () => {
-            try {
-              const { error } = await supabase
-                .from("goals")
-                .delete()
-                .eq("id", goalId);
+            const { error } = await supabase
+              .from("goals")
+              .delete()
+              .eq("id", investment.id);
 
-              if (error) {
-                console.error(error);
-                Alert.alert("Erro", "Não foi possível excluir.");
-                return;
-              }
-
-              await reload();
-              Alert.alert("Pronto", "Investimento excluído.");
-
-              router.replace("/goals");
-            } catch (err) {
-              console.error(err);
+            if (error) {
               Alert.alert("Erro", "Não foi possível excluir.");
+              return;
             }
+
+            await reload();
+            router.replace("/goals");
           },
         },
       ]
@@ -243,127 +220,25 @@ export default function InvestmentEditScreen() {
   }
 
   /* ---------------------------------------------------------
-      BACK (CORRIGIDO)
+      BACK
   --------------------------------------------------------- */
   function back() {
     if (step > 0) {
       setStep(step - 1);
       return;
     }
-
-    if (router.canGoBack()) {
-      router.back();
-    } else {
-      router.replace(`/goals/${goalId}`);
-    }
+    router.replace(`/goals/investments/${investment.id}`);
   }
 
   /* ---------------------------------------------------------
-      WIZARD STEPS
+      STEPS (mantidos)
   --------------------------------------------------------- */
-  const Step1 = (
-    <View style={styles.step}>
-      <Text style={styles.stepTitle}>Nome do investimento</Text>
-      <Text style={styles.stepSub}>
-        Título exibido no painel e relatórios.
-      </Text>
-
-      <View style={styles.glassInput}>
-        <TextInput
-          style={styles.input}
-          value={name}
-          onChangeText={setName}
-          placeholder="Ex: Ações Brasil, Long Term..."
-          placeholderTextColor="#777"
-        />
-      </View>
-
-      <Text style={styles.helper}>Ajude a identificar rapidamente.</Text>
-    </View>
-  );
-
-  const Step2 = (
-    <View style={styles.step}>
-      <Text style={styles.stepTitle}>Valor atual</Text>
-      <Text style={styles.stepSub}>Quanto há investido hoje?</Text>
-
-      <View style={styles.glassInput}>
-        <TextInput
-          style={styles.input}
-          keyboardType="numeric"
-          value={currentInput}
-          onChangeText={setCurrentInput}
-          placeholder="0,00"
-          placeholderTextColor="#777"
-        />
-      </View>
-
-      <Text style={styles.helper}>
-        Atual registrado: {fmtNum(investment.currentAmount)}
-      </Text>
-    </View>
-  );
-
-  const Step3 = (
-    <View style={styles.step}>
-      <Text style={styles.stepTitle}>Aporte mensal</Text>
-      <Text style={styles.stepSub}>
-        Defina um valor recorrente, se fizer sentido.
-      </Text>
-
-      <View style={styles.glassInput}>
-        <TextInput
-          style={styles.input}
-          keyboardType="numeric"
-          value={monthlyInput}
-          onChangeText={setMonthlyInput}
-          placeholder="0,00"
-          placeholderTextColor="#777"
-        />
-      </View>
-
-      <Text style={styles.helper}>Usado no fluxo mensal.</Text>
-    </View>
-  );
-
-  const Step4 = (
-    <View style={styles.step}>
-      <Text style={styles.stepTitle}>Prazo alvo</Text>
-      <Text style={styles.stepSub}>
-        Opcional — quando deseja alcançar a meta.
-      </Text>
-
-      <View style={styles.glassInput}>
-        <TextInput
-          style={styles.input}
-          value={deadline}
-          onChangeText={setDeadline}
-          placeholder="AAAA-MM-DD"
-          placeholderTextColor="#777"
-        />
-      </View>
-
-      <View style={styles.reviewBox}>
-        <Text style={styles.reviewLine}>Nome: {fmtName(name)}</Text>
-        <Text style={styles.reviewLine}>
-          Valor atual: {currentInput || "—"}
-        </Text>
-        <Text style={styles.reviewLine}>
-          Aporte mensal: {monthlyInput || "—"}
-        </Text>
-        <Text style={styles.reviewLine}>
-          Prazo: {deadline || "Sem prazo definido"}
-        </Text>
-      </View>
-
-      {/* BOTÃO DE EXCLUIR */}
-      <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete}>
-        <Text style={styles.deleteText}>Excluir investimento</Text>
-      </TouchableOpacity>
-    </View>
-  );
-
-  const steps = [Step1, Step2, Step3, Step4];
+  const steps = [
+    { title: "Nome", value: name, set: setName },
+    { title: "Valor atual", value: currentInput, set: setCurrentInput },
+    { title: "Aporte mensal", value: monthlyInput, set: setMonthlyInput },
+    { title: "Prazo", value: deadline, set: setDeadline },
+  ];
 
   /* ---------------------------------------------------------
       RENDER
@@ -385,28 +260,18 @@ export default function InvestmentEditScreen() {
           <Text style={styles.stepIndicator}>{step + 1}/4</Text>
         </View>
 
-        {/* PROGRESS BAR */}
-        <View style={styles.progressContainer}>
-          <View
-            style={[
-              styles.progressBar,
-              { width: `${((step + 1) / 4) * 100}%` },
-            ]}
-          />
-        </View>
-
         {/* PREVIEW */}
         <View style={styles.previewCard}>
-          <Text style={styles.previewTitle}>{fmtName(name)}</Text>
+          <Text style={styles.previewTitle}>{name || "Investimento"}</Text>
           <Text style={styles.previewValue}>
-            Atual: {fmtNum(parsedCurrent ?? investment.currentAmount)}
+            Atual: {fmtCurrency(parsedCurrent ?? investment.currentAmount)}
           </Text>
           <Text style={styles.previewValue}>
-            Mensal: {fmtNum(parsedMonthly ?? investment.autoRuleMonthly)}
+            Mensal: {fmtCurrency(parsedMonthly ?? investment.autoRuleMonthly)}
           </Text>
         </View>
 
-        {/* WIZARD */}
+        {/* FORM */}
         <View style={styles.wizardContainer}>
           <Animated.View
             style={[
@@ -421,10 +286,16 @@ export default function InvestmentEditScreen() {
             {steps.map((s, i) => (
               <View key={i} style={{ width: INNER_WIDTH }}>
                 <ScrollView
-                  showsVerticalScrollIndicator={false}
                   contentContainerStyle={styles.stepScrollContent}
                 >
-                  {s}
+                  <Text style={styles.stepTitle}>{s.title}</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={s.value}
+                    onChangeText={s.set}
+                    placeholder="—"
+                    placeholderTextColor="#777"
+                  />
                 </ScrollView>
               </View>
             ))}
@@ -434,13 +305,17 @@ export default function InvestmentEditScreen() {
         {/* FOOTER */}
         <View style={styles.footer}>
           {step < 3 ? (
-            <TouchableOpacity onPress={() => setStep(step + 1)} style={styles.btn}>
+            <TouchableOpacity
+              onPress={() => setStep(step + 1)}
+              style={styles.btn}
+            >
               <Text style={styles.btnText}>Continuar</Text>
             </TouchableOpacity>
           ) : (
             <TouchableOpacity
               onPress={handleSave}
               style={[styles.btn, saving && { opacity: 0.4 }]}
+              disabled={saving}
             >
               {saving ? (
                 <ActivityIndicator color="#fff" />
@@ -449,6 +324,13 @@ export default function InvestmentEditScreen() {
               )}
             </TouchableOpacity>
           )}
+
+          <TouchableOpacity
+            onPress={handleDelete}
+            style={styles.deleteBtn}
+          >
+            <Text style={styles.deleteText}>Excluir investimento</Text>
+          </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
     </Screen>
@@ -456,7 +338,7 @@ export default function InvestmentEditScreen() {
 }
 
 /* ---------------------------------------------------------
-    STYLES
+   STYLES
 --------------------------------------------------------- */
 const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
@@ -489,19 +371,6 @@ const styles = StyleSheet.create({
     fontFamily: brandFont,
   },
 
-  progressContainer: {
-    height: 3,
-    backgroundColor: "rgba(255,255,255,0.05)",
-    marginHorizontal: 20,
-    borderRadius: 20,
-    overflow: "hidden",
-    marginBottom: 16,
-  },
-  progressBar: {
-    height: "100%",
-    backgroundColor: "rgba(255,255,255,0.35)",
-  },
-
   previewCard: {
     marginHorizontal: 18,
     marginBottom: 16,
@@ -528,72 +397,49 @@ const styles = StyleSheet.create({
     flex: 1,
     marginHorizontal: 18,
     borderRadius: 26,
-    overflow: "hidden",
     backgroundColor: "rgba(255,255,255,0.03)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.06)",
   },
-  stepsWrapper: {
-    flexDirection: "row",
-  },
-  stepScrollContent: {
-    padding: 20,
-    paddingBottom: 60,
-  },
+  stepsWrapper: { flexDirection: "row" },
+  stepScrollContent: { padding: 20, paddingBottom: 60 },
 
-  step: {},
   stepTitle: {
     color: "#fff",
     fontSize: 22,
     fontFamily: brandFont,
     fontWeight: "600",
-    marginBottom: 8,
-  },
-  stepSub: {
-    color: "#999",
-    fontSize: 14,
-    marginBottom: 18,
-    fontFamily: brandFont,
-  },
-
-  glassInput: {
-    padding: 16,
-    borderRadius: 18,
-    backgroundColor: "rgba(255,255,255,0.06)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
-    marginBottom: 16,
+    marginBottom: 12,
   },
   input: {
     color: "#fff",
-    fontSize: 17,
+    fontSize: 18,
     fontFamily: brandFont,
-  },
-  helper: {
-    color: "#777",
-    fontSize: 12,
-    marginTop: -4,
-    fontFamily: brandFont,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.2)",
+    paddingVertical: 6,
   },
 
-  reviewBox: {
-    marginTop: 20,
-    padding: 18,
-    borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.04)",
+  footer: { padding: 20 },
+  btn: {
+    height: 54,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.14)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
+    borderColor: "rgba(255,255,255,0.10)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
   },
-  reviewLine: {
+  btnText: {
     color: "#fff",
-    opacity: 0.9,
-    fontSize: 15,
-    marginBottom: 10,
+    fontSize: 17,
+    fontWeight: "600",
     fontFamily: brandFont,
   },
 
   deleteBtn: {
-    marginTop: 26,
+    marginTop: 8,
     padding: 14,
     borderRadius: 16,
     backgroundColor: "rgba(255, 69, 58, 0.12)",
@@ -607,25 +453,4 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     fontFamily: brandFont,
   },
-
-  footer: {
-    padding: 20,
-  },
-  btn: {
-    height: 54,
-    borderRadius: 18,
-    backgroundColor: "rgba(255,255,255,0.14)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  btnText: {
-    color: "#fff",
-    fontSize: 17,
-    fontWeight: "600",
-    fontFamily: brandFont,
-  },
-
-  subtitle: { color: "#aaa", fontFamily: brandFont, marginTop: 8 },
 });

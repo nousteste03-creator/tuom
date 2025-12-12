@@ -1,96 +1,116 @@
 // hooks/useGoalsInsights.ts
 import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
-import { useGoals } from "@/hooks/useGoals";
-import { useIncomeSources } from "@/hooks/useIncomeSources";
 import { useUserPlan } from "@/hooks/useUserPlan";
 
-/**
- * Hook oficial de insights por categoria (goals, debts, investments, income)
- * Agora com:
- * - JWT enviado para a Edge Function
- * - Logs completos
- * - Fallback local
- */
-export function useGoalsInsights(
-  tab: "goals" | "debts" | "investments" | "income"
-) {
-  const { goals, debts, investments } = useGoals();
-  const { incomeSources } = useIncomeSources();
+type InsightTab = "goals" | "debts" | "investments" | "income";
+
+type Params = {
+  tab: InsightTab;
+  goals?: any[];
+  debts?: any[];
+  investments?: any[];
+  incomeSources?: any[];
+};
+
+export function useGoalsInsights({
+  tab,
+  goals,
+  debts,
+  investments,
+  incomeSources,
+}: Params) {
   const { isPro } = useUserPlan();
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [remoteInsights, setRemoteInsights] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
 
+  /* =========================================================
+     NORMALIZAÇÃO DEFENSIVA (CRÍTICA)
+  ========================================================= */
+  const safeGoals = Array.isArray(goals) ? goals : [];
+  const safeDebts = Array.isArray(debts) ? debts : [];
+  const safeInvestments = Array.isArray(investments) ? investments : [];
+  const safeIncomeSources = Array.isArray(incomeSources)
+    ? incomeSources
+    : [];
+
   /* ---------------------------------------------------------
-   * 1) Escolher qual função será chamada
-   --------------------------------------------------------- */
+     1) Definir função correta
+  --------------------------------------------------------- */
   const fnName = useMemo(() => {
     const tier = isPro ? "premium" : "free";
 
     if (tab === "goals") return `goals-insights-${tier}`;
     if (tab === "debts") return `debts-insights-${tier}`;
-    if (tab === "investments") return `investment-goal-insights-${tier}`;
+    if (tab === "investments")
+      return `investment-goal-insights-${tier}`;
     if (tab === "income") return `income-insights-${tier}`;
 
     return null;
   }, [tab, isPro]);
 
+  /* ---------------------------------------------------------
+     LOGS (SEGUROS)
+  --------------------------------------------------------- */
   console.log("------------------------------------------------------");
   console.log("🔍 INSIGHTS - ABA:", tab);
   console.log("🔍 IS PRO?", isPro);
   console.log("🔍 Função selecionada:", fnName);
+  console.log("📦 PAYLOAD (resume):", {
+    goals: safeGoals.length,
+    debts: safeDebts.length,
+    investments: safeInvestments.length,
+    incomeSources: safeIncomeSources.length,
+  });
   console.log("------------------------------------------------------");
 
   /* ---------------------------------------------------------
-   * 2) Criar payload unificado enviado às funções
-   --------------------------------------------------------- */
+     2) Payload unificado (SEGURO)
+  --------------------------------------------------------- */
   const payload = useMemo(
     () => ({
-      goals,
-      debts,
-      investments,
-      incomeSources,
+      goals: safeGoals,
+      debts: safeDebts,
+      investments: safeInvestments,
+      incomeSources: safeIncomeSources,
     }),
-    [goals, debts, investments, incomeSources]
+    [safeGoals, safeDebts, safeInvestments, safeIncomeSources]
   );
 
-  console.log("📦 PAYLOAD:", {
-    goals: goals.length,
-    debts: debts.length,
-    investments: investments.length,
-    incomeSources: incomeSources.length,
-  });
-
   /* ---------------------------------------------------------
-   * 3) Chamada oficial da Edge Function
-   * Agora com envio do JWT para respeitar RLS e Policies
-   --------------------------------------------------------- */
+     3) Chamada Edge Function
+  --------------------------------------------------------- */
   useEffect(() => {
     if (!fnName) return;
 
-    if (!goals || !debts || !investments || !incomeSources) return;
+    // 🔒 Não chamar se ainda não existe dado real
+    if (
+      safeGoals.length === 0 &&
+      safeDebts.length === 0 &&
+      safeInvestments.length === 0 &&
+      safeIncomeSources.length === 0
+    ) {
+      console.log("⏭️ Insights ignorados — sem dados");
+      return;
+    }
 
     async function load() {
       try {
         setLoading(true);
-        setRemoteInsights([]);
         setError(null);
 
-        console.log("🌐 Chamando Edge Function:", fnName);
-
-        // 1) Pegar o JWT do usuário
-        const { data: sessionData } = await supabase.auth.getSession();
-        const token = sessionData?.session?.access_token;
+        const { data: session } = await supabase.auth.getSession();
+        const token = session?.session?.access_token;
 
         if (!token) {
-          console.log("❌ SEM TOKEN — usuário não autenticado");
-          setError("Usuário não autenticado");
+          console.log("❌ Sem token JWT");
           return;
         }
 
-        // 2) Chamar a função com JWT
+        console.log("🌐 Chamando Edge Function:", fnName);
+
         const { data, error } = await supabase.functions.invoke(fnName, {
           body: payload,
           headers: {
@@ -98,21 +118,14 @@ export function useGoalsInsights(
           },
         });
 
-        if (error) {
-          console.log("❌ ERRO DA EDGE FUNCTION:", error);
-          throw error;
-        }
+        if (error) throw error;
 
         console.log("📥 RESPOSTA BRUTA:", data);
 
-        const items = data?.insights ?? [];
-
-        console.log("📥 INSIGHTS REMOTOS:", items);
-
-        setRemoteInsights(items);
+        setRemoteInsights(data?.insights ?? []);
       } catch (err) {
-        console.log("🔥 ERRO NO HOOK useGoalsInsights:", err);
-        setError("IA indisponível");
+        console.log("🔥 ERRO useGoalsInsights:", err);
+        setError("Falha ao gerar insights");
         setRemoteInsights([]);
       } finally {
         setLoading(false);
@@ -123,92 +136,10 @@ export function useGoalsInsights(
   }, [fnName, payload]);
 
   /* ---------------------------------------------------------
-   * 4) Fallback local para quando a IA não retornar nada
-   --------------------------------------------------------- */
-  const fallback = useMemo(() => {
-    const out: any[] = [];
-
-    if (tab === "goals") {
-      for (const g of goals) {
-        if (g.progressPercent >= 70) {
-          out.push({
-            id: "fb-goal-" + g.id,
-            type: "goals",
-            severity: "positive",
-            title: `Meta "${g.title}" está indo bem`,
-            message: `Você já atingiu ${g.progressPercent.toFixed(0)}% da meta.`,
-          });
-        }
-      }
-    }
-
-    if (tab === "debts") {
-      for (const d of debts) {
-        const next = d.installments?.find((i) => i.status !== "paid");
-        if (next && next.amount > d.targetAmount * 0.2) {
-          out.push({
-            id: "fb-debt-" + d.id,
-            type: "debts",
-            severity: "danger",
-            title: "Parcela alta encontrada",
-            message: `A próxima parcela é de R$${next.amount.toFixed(2)}.`,
-          });
-        }
-      }
-    }
-
-    if (tab === "investments") {
-      for (const inv of investments) {
-        if (inv.projection?.monthsToGoal <= 3) {
-          out.push({
-            id: "fb-invest-" + inv.id,
-            type: "investments",
-            severity: "positive",
-            title: "Investimento perto da meta",
-            message: `Faltam ${inv.projection.monthsToGoal} meses.`,
-          });
-        }
-      }
-    }
-
-    if (tab === "income") {
-      if (incomeSources.length === 0) {
-        out.push({
-          id: "fb-inc-0",
-          type: "income",
-          severity: "danger",
-          title: "Nenhuma renda cadastrada",
-          message: "Adicione sua renda para gerar projeções reais.",
-        });
-      }
-
-      if (incomeSources.length === 1) {
-        out.push({
-          id: "fb-inc-1",
-          type: "income",
-          severity: "neutral",
-          title: "Renda concentrada",
-          message: "Depender de uma única fonte aumenta o risco financeiro.",
-        });
-      }
-    }
-
-    console.log("📦 FALLBACK LOCAL:", out);
-
-    return out;
-  }, [tab, goals, debts, investments, incomeSources]);
-
-  /* ---------------------------------------------------------
-   * 5) Resultado final exibido na UI
-   --------------------------------------------------------- */
-  const finalInsights =
-    remoteInsights.length > 0 ? remoteInsights : fallback;
-
-  console.log("📌 INSIGHTS FINAIS ENVIADOS PARA A UI:", finalInsights);
-  console.log("------------------------------------------------------");
-
+     4) Resultado final
+  --------------------------------------------------------- */
   return {
-    insights: finalInsights,
+    insights: remoteInsights,
     loading,
     error,
   };

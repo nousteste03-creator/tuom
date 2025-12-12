@@ -35,7 +35,6 @@ export default function IncomeScreen() {
   -------------------------------------------------------- */
   const totalMonthly = useMemo(() => {
     if (!incomeSources || incomeSources.length === 0) return 0;
-
     return incomeSources.reduce((sum, item) => {
       const amt = Number(item.amount ?? 0);
       return sum + amt;
@@ -43,26 +42,19 @@ export default function IncomeScreen() {
   }, [incomeSources]);
 
   /* --------------------------------------------------------
-     DISTRIBUIÇÃO PARA O GRÁFICO DE BARRAS
+     DISTRIBUIÇÃO
   -------------------------------------------------------- */
   const distribution = useMemo(() => {
     if (!incomeSources || incomeSources.length === 0) return [];
-
     return incomeSources.map((item) => {
       const amount = Number(item.amount ?? 0);
       const pct = totalMonthly > 0 ? amount / totalMonthly : 0;
-
-      return {
-        id: item.id,
-        label: item.name,
-        amount,
-        pct,
-      };
+      return { id: item.id, label: item.name, amount, pct };
     });
   }, [incomeSources, totalMonthly]);
 
   /* --------------------------------------------------------
-     INSIGHTS PRO — IA real
+     INSIGHTS PRO
   -------------------------------------------------------- */
   useEffect(() => {
     if (!isPro || incomeSources.length === 0) {
@@ -89,7 +81,6 @@ export default function IncomeScreen() {
         );
 
         if (error) {
-          console.log("IA premium erro:", error);
           setInsight(null);
         } else {
           const text =
@@ -100,8 +91,7 @@ export default function IncomeScreen() {
 
           setInsight(typeof text === "string" ? text : null);
         }
-      } catch (err) {
-        console.log("IA premium exception:", err);
+      } catch {
         setInsight(null);
       } finally {
         setInsightLoading(false);
@@ -112,7 +102,7 @@ export default function IncomeScreen() {
   }, [incomeSources, isPro, totalMonthly]);
 
   /* --------------------------------------------------------
-     EXCLUIR RECEITA
+     DELETE
   -------------------------------------------------------- */
   function handleDelete(id: string) {
     Alert.alert(
@@ -143,138 +133,112 @@ export default function IncomeScreen() {
       >
         {/* HEADER */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>
-            {isPro ? "Fluxo de Renda" : "Suas Receitas"}
-          </Text>
+          <Text style={styles.headerTitle}>Fluxo de Renda</Text>
           <Text style={styles.headerSubtitle}>
-            Acompanhe todas as entradas de dinheiro
+            Visão consolidada das suas entradas mensais
           </Text>
         </View>
 
-        {/* CARD RESUMO */}
-        <BlurView intensity={30} tint="dark" style={styles.summaryCard}>
-          <Text style={styles.summaryLabel}>Total mensal</Text>
-          <Text style={styles.summaryValue}>R$ {totalMonthly.toFixed(2)}</Text>
-
-          <Text style={[styles.summaryLabel, { marginTop: 14 }]}>
-            Fontes cadastradas
-          </Text>
-          <Text style={styles.summaryValueSmall}>
-            {incomeSources.length} fonte{incomeSources.length !== 1 ? "s" : ""}
+        {/* PAINEL PRINCIPAL */}
+        <BlurView intensity={28} tint="dark" style={styles.mainPanel}>
+          <Text style={styles.panelLabel}>Total mensal</Text>
+          <Text style={styles.panelValue}>
+            R$ {totalMonthly.toFixed(2)}
           </Text>
 
-          {isPro && distribution.length > 0 && (
-            <>
-              <Text style={[styles.summaryLabel, { marginTop: 18 }]}>
-                Concentração da renda
+          <View style={styles.panelMetaRow}>
+            <Text style={styles.panelMeta}>
+              {incomeSources.length} fonte(s)
+            </Text>
+
+            {isPro && distribution.length > 0 && (
+              <Text style={styles.panelMeta}>
+                {Math.round(distribution[0].pct * 100)}% concentrado
               </Text>
-              <Text style={styles.summaryValueSmall}>
-                {Math.round(distribution[0].pct * 100)}% na maior fonte
-              </Text>
-            </>
+            )}
+          </View>
+
+          {isPro && (
+            <Text style={styles.panelInsight}>
+              {insightLoading
+                ? "Analisando seu fluxo de renda..."
+                : insight || "Nenhum insight disponível no momento."}
+            </Text>
           )}
         </BlurView>
 
-        {/* GRÁFICO PREMIUM DE BARRAS */}
+        {/* DISTRIBUIÇÃO */}
         {distribution.length > 0 && (
-          <View style={styles.chartContainer}>
+          <View style={styles.distributionSection}>
             <Text style={styles.sectionTitle}>Distribuição</Text>
 
-            {distribution.map((d, idx) => {
-              const rawPct = d.pct ?? 0;
-              const pct = Math.max(0, Math.min(rawPct, 1));
-              const barWidth = `${pct * 100}%`;
+            {distribution.map((d) => (
+              <View key={d.id} style={styles.distRow}>
+                <Text style={styles.distLabel}>{d.label}</Text>
 
-              const baseOpacity = 0.7 + pct * 0.3;
-              const barOpacity = Math.max(0.4, Math.min(baseOpacity, 1));
-
-              return (
-                <View key={d.id || idx} style={styles.chartRow}>
-                  <Text style={styles.chartLabel}>{d.label}</Text>
-
-                  <View style={styles.chartBarBackground}>
-                    <View
-                      style={[
-                        styles.chartBarFill,
-                        { width: barWidth, opacity: barOpacity },
-                      ]}
-                    />
-                  </View>
-
-                  <Text style={styles.chartValue}>
-                    R$ {d.amount.toFixed(2)}
-                  </Text>
+                <View style={styles.distBarBg}>
+                  <View
+                    style={[
+                      styles.distBarFill,
+                      { width: `${Math.min(d.pct * 100, 100)}%` },
+                    ]}
+                  />
                 </View>
-              );
-            })}
+              </View>
+            ))}
           </View>
         )}
 
-        {/* INSIGHTS PRO */}
-        {isPro && (
-          <View style={styles.insightsSection}>
-            <Text style={styles.sectionTitle}>Insights da PILA</Text>
-
-            <BlurView intensity={25} tint="dark" style={styles.insightCard}>
-              <Text style={styles.insightText}>
-                {insightLoading
-                  ? "Gerando interpretação..."
-                  : insight || "Nenhum insight disponível."}
-              </Text>
-            </BlurView>
-          </View>
-        )}
-
-        {/* LISTA DE RECEITAS */}
+        {/* LISTA */}
         <View style={styles.listSection}>
-          <Text style={styles.sectionTitle}>Suas receitas</Text>
+          <Text style={styles.sectionTitle}>Receitas</Text>
 
           {incomeSources.length === 0 && (
-            <Text style={styles.emptyText}>Nenhuma receita cadastrada.</Text>
+            <Text style={styles.emptyText}>
+              Nenhuma receita cadastrada.
+            </Text>
           )}
 
           {incomeSources.map((item) => (
-            <BlurView
-              key={item.id}
-              intensity={25}
-              tint="dark"
-              style={styles.itemCard}
-            >
-              <View style={{ flex: 1 }}>
+            <View key={item.id} style={styles.listItem}>
+              <View>
                 <Text style={styles.itemTitle}>{item.name}</Text>
                 <Text style={styles.itemValue}>
                   R$ {Number(item.amount ?? 0).toFixed(2)} / mês
                 </Text>
               </View>
 
-              <TouchableOpacity
-                onPress={() =>
-                  router.push(`/goals/create?type=income&edit=${item.id}`)
-                }
-              >
-                <Text style={styles.editBtn}>Editar</Text>
-              </TouchableOpacity>
+              <View style={styles.actions}>
+                <TouchableOpacity
+                  onPress={() =>
+                    router.push(`/goals/create?type=income&edit=${item.id}`)
+                  }
+                >
+                  <Text style={styles.editBtn}>Editar</Text>
+                </TouchableOpacity>
 
-              <TouchableOpacity onPress={() => handleDelete(item.id)}>
-                <Text style={styles.deleteBtn}>Excluir</Text>
-              </TouchableOpacity>
-            </BlurView>
+                <TouchableOpacity onPress={() => handleDelete(item.id)}>
+                  <Text style={styles.deleteBtn}>Excluir</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           ))}
         </View>
 
-        {/* CTA FINAL */}
+        {/* CTA */}
         <View style={styles.footer}>
           <TouchableOpacity
             style={styles.primaryBtn}
             onPress={() => router.push("/goals/create?type=income")}
           >
-            <Text style={styles.primaryBtnText}>Adicionar nova receita</Text>
+            <Text style={styles.primaryBtnText}>
+              Adicionar nova receita
+            </Text>
           </TouchableOpacity>
 
           {plan === "free" && (
             <Text style={styles.freeHint}>
-              Usuários FREE podem cadastrar receitas ilimitadas, mas os insights
-              detalhados ficam no plano PRO.
+              Insights avançados disponíveis no plano PRO.
             </Text>
           )}
         </View>
@@ -287,115 +251,107 @@ export default function IncomeScreen() {
    STYLES
 -------------------------------------------------------- */
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "black" },
+  container: { flex: 1, backgroundColor: "#000" },
 
-  header: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 6 },
+  header: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 8,
+  },
 
   headerTitle: {
     fontFamily: brandFont,
-    color: "white",
+    color: "#fff",
     fontSize: 26,
     fontWeight: "700",
   },
 
   headerSubtitle: {
     fontFamily: brandFont,
-    color: "rgba(255,255,255,0.5)",
+    color: "rgba(255,255,255,0.55)",
     fontSize: 14,
     marginTop: 2,
   },
 
-  summaryCard: {
+  mainPanel: {
     marginHorizontal: 16,
     marginTop: 16,
-    padding: 20,
-    borderRadius: 20,
+    padding: 22,
+    borderRadius: 22,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.08)",
-    backgroundColor: "rgba(255,255,255,0.05)",
+    backgroundColor: "rgba(255,255,255,0.04)",
   },
 
-  summaryLabel: {
+  panelLabel: {
     color: "rgba(255,255,255,0.6)",
     fontFamily: brandFont,
     fontSize: 13,
   },
 
-  summaryValue: {
-    color: "white",
+  panelValue: {
+    color: "#fff",
     fontFamily: brandFont,
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: "700",
+    marginTop: 2,
   },
 
-  summaryValueSmall: {
-    color: "white",
-    fontFamily: brandFont,
-    fontSize: 16,
-    fontWeight: "600",
+  panelMetaRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 12,
   },
 
-  sectionTitle: {
-    fontFamily: brandFont,
-    color: "white",
-    fontSize: 18,
-    fontWeight: "600",
-    marginBottom: 10,
-    marginLeft: 18,
-  },
-
-  chartContainer: { marginTop: 10, paddingBottom: 10 },
-
-  chartRow: { paddingHorizontal: 18, marginBottom: 14 },
-
-  chartLabel: {
-    color: "white",
-    fontFamily: brandFont,
-    fontSize: 13,
-    marginBottom: 4,
-  },
-
-  chartBarBackground: {
-    width: "100%",
-    height: 10,
-    backgroundColor: "rgba(255,255,255,0.08)",
-    borderRadius: 10,
-    overflow: "hidden",
-  },
-
-  chartBarFill: {
-    height: "100%",
-    backgroundColor: "#3EC6FF",
-    borderRadius: 10,
-    opacity: 1, // important to avoid type errors
-  },
-
-  chartValue: {
+  panelMeta: {
     color: "rgba(255,255,255,0.6)",
     fontFamily: brandFont,
-    fontSize: 12,
-    marginTop: 4,
+    fontSize: 13,
   },
 
-  insightsSection: { marginTop: 14 },
-
-  insightCard: {
-    marginHorizontal: 16,
-    padding: 18,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-    backgroundColor: "rgba(255,255,255,0.05)",
-  },
-
-  insightText: {
+  panelInsight: {
+    marginTop: 16,
     color: "rgba(255,255,255,0.9)",
     fontFamily: brandFont,
     fontSize: 14,
     lineHeight: 20,
   },
 
-  listSection: { marginTop: 20 },
+  distributionSection: { marginTop: 22 },
+
+  sectionTitle: {
+    fontFamily: brandFont,
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "600",
+    marginBottom: 10,
+    marginLeft: 18,
+  },
+
+  distRow: { paddingHorizontal: 18, marginBottom: 14 },
+
+  distLabel: {
+    color: "#fff",
+    fontFamily: brandFont,
+    fontSize: 13,
+    marginBottom: 4,
+  },
+
+  distBarBg: {
+    width: "100%",
+    height: 8,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderRadius: 8,
+    overflow: "hidden",
+  },
+
+  distBarFill: {
+    height: "100%",
+    backgroundColor: "#3EC6FF",
+    borderRadius: 8,
+  },
+
+  listSection: { marginTop: 24 },
 
   emptyText: {
     color: "rgba(255,255,255,0.5)",
@@ -403,30 +359,33 @@ const styles = StyleSheet.create({
     fontFamily: brandFont,
   },
 
-  itemCard: {
+  listItem: {
     flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
     marginHorizontal: 16,
-    padding: 16,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-    backgroundColor: "rgba(255,255,255,0.05)",
-    marginBottom: 10,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.06)",
   },
 
   itemTitle: {
-    color: "white",
+    color: "#fff",
     fontSize: 16,
     fontFamily: brandFont,
     fontWeight: "600",
   },
 
   itemValue: {
-    color: "rgba(255,255,255,0.7)",
+    color: "rgba(255,255,255,0.65)",
     fontSize: 13,
     marginTop: 2,
     fontFamily: brandFont,
+  },
+
+  actions: {
+    flexDirection: "row",
+    alignItems: "center",
   },
 
   editBtn: {
@@ -459,7 +418,7 @@ const styles = StyleSheet.create({
   },
 
   primaryBtnText: {
-    color: "white",
+    color: "#fff",
     fontSize: 16,
     fontWeight: "600",
     fontFamily: brandFont,

@@ -211,6 +211,7 @@ function computeGoalStats(
     aheadOrBehindMonths,
   };
 }
+
 /* ============================================================
    Helper — construir séries de investimento
 ============================================================ */
@@ -367,6 +368,36 @@ async function generateInstallments(goalId: string, input: any, userId: string) 
 let isReloading = false;
 
 /* ============================================================
+   NOVO (isolado): helper de timeframe p/ evolução real
+============================================================ */
+
+function subtractTimeframe(from: Date, timeframe: TimeframeKey): Date {
+  const d = new Date(from);
+
+  switch (timeframe) {
+    case "1D":
+      d.setDate(d.getDate() - 1);
+      break;
+    case "1S":
+      d.setDate(d.getDate() - 7);
+      break;
+    case "1M":
+      d.setMonth(d.getMonth() - 1);
+      break;
+    case "3M":
+      d.setMonth(d.getMonth() - 3);
+      break;
+    case "1Y":
+      d.setFullYear(d.getFullYear() - 1);
+      break;
+    case "ALL":
+      return new Date(0);
+  }
+
+  return d;
+}
+
+/* ============================================================
    Hook principal — começo
 ============================================================ */
 
@@ -431,6 +462,7 @@ export function useGoals() {
   useEffect(() => {
     reload();
   }, [reload]);
+
   /* ------------------ RECONCILE ------------------ */
 
   const lastReconcileSnapshot = useRef<string>("");
@@ -635,6 +667,55 @@ export function useGoals() {
   );
 
   /* ============================================================
+     INVESTMENT EVOLUTION — REAL (NOVA FUNÇÃO, isolada)
+     - usa goal_installments reais
+     - considera apenas status = paid
+     - calcula startValue / currentValue / delta no período
+  ============================================================ */
+
+  const getInvestmentEvolution = useCallback(
+    (
+      investmentId: string,
+      timeframe: TimeframeKey
+    ): {
+      startValue: number;
+      currentValue: number;
+      delta: number;
+    } | null => {
+      // pega o investimento final já normalizado (evita lidar com type/tipo)
+      const inv = investments.find((g) => g.id === investmentId);
+      if (!inv) return null;
+
+      const currentValue = Number(inv.currentAmount || 0);
+
+      const startDate = subtractTimeframe(new Date(), timeframe);
+
+      // soma apenas installments "paid" dentro do período, por due_date (regra pedida)
+      const paidInPeriod = rawInstallments
+        .filter((i) => {
+          if (i.goal_id !== investmentId) return false;
+          if (i.status !== "paid") return false;
+
+          const due = i.due_date ? new Date(i.due_date) : null;
+          if (!due || isNaN(due.getTime())) return false;
+
+          return due >= startDate;
+        })
+        .reduce((acc, i) => acc + Number(i.amount || 0), 0);
+
+      const startValue = Math.max(currentValue - paidInPeriod, 0);
+      const delta = currentValue - startValue;
+
+      return {
+        startValue,
+        currentValue,
+        delta,
+      };
+    },
+    [investments, rawInstallments]
+  );
+
+  /* ============================================================
      CREATE GOAL — 100% CORRIGIDO (sem dependência do isPro)
   ============================================================ */
 
@@ -741,6 +822,7 @@ export function useGoals() {
     },
     [reload]
   );
+
   /* ============================================================
      SET PRIMARY
   ============================================================ */
@@ -903,11 +985,7 @@ export function useGoals() {
         if (originalAmount <= 0) continue;
 
         if (remainingToApply >= originalAmount - 0.01) {
-          await supabase
-            .from("goal_installments")
-            .delete()
-            .eq("id", inst.id);
-
+          await supabase.from("goal_installments").delete().eq("id", inst.id);
           remainingToApply -= originalAmount;
         } else {
           const newAmount = originalAmount - remainingToApply;
@@ -973,8 +1051,7 @@ export function useGoals() {
 
       const status: InstallmentStatus = data.status ?? "paid";
       const amount = Number(data.amount || 0);
-      const dueDate =
-        data.dueDate ?? new Date().toISOString().split("T")[0];
+      const dueDate = data.dueDate ?? new Date().toISOString().split("T")[0];
 
       const insertPayload: any = {
         user_id: user.id,
@@ -1063,5 +1140,8 @@ export function useGoals() {
 
     createInstallment,
     applyAmortization,
+
+    /** 🔥 NOVO (evolução real do investimento por período) */
+    getInvestmentEvolution,
   };
 }

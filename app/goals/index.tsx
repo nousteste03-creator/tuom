@@ -22,13 +22,12 @@ import GoalInvestmentMainCard from "@/components/app/goals/GoalInvestmentMainCar
 import GoalsDebtList from "@/components/app/goals/GoalsDebtList";
 import GoalsInvestmentList from "@/components/app/goals/GoalsInvestmentList";
 import GoalsIncomeBlock from "@/components/app/goals/GoalsIncomeBlock";
-import GoalsInsightsCard from "@/components/app/goals/GoalsInsightsCard";
 import GoalsEmptyState from "@/components/app/goals/GoalsEmptyState";
 
 import ModalPremiumPaywall from "@/components/app/common/ModalPremiumPaywall";
 
 import { useGoals } from "@/hooks/useGoals";
-import { useGoalsInsights } from "@/hooks/useGoalsInsights";
+import { useIncomeSources } from "@/hooks/useIncomeSources";
 import { useUserPlan } from "@/context/UserPlanContext";
 
 const brandFont = Platform.select({
@@ -41,28 +40,41 @@ export default function GoalsIndexScreen() {
   const router = useRouter();
   const { plan, isPro } = useUserPlan();
 
-  // 1) O estado da aba precisa vir ANTES do hook de insights
+  /* -----------------------------------------------------------
+   * Estado da aba
+   ----------------------------------------------------------- */
   const [tab, setTab] =
     useState<"goals" | "debts" | "investments" | "income">("goals");
 
+  /* -----------------------------------------------------------
+   * Dados base (NORMALIZADOS)
+   ----------------------------------------------------------- */
   const {
-    goals,
-    debts,
-    investments,
+    goals: rawGoals,
+    debts: rawDebts,
+    investments: rawInvestments,
     primaryGoal,
     nextInstallment,
     reload,
   } = useGoals();
 
-  // 2) Hook de insights recebe a aba atual
-  const { insights, loading: insightsLoading } = useGoalsInsights(tab);
+  const goals = Array.isArray(rawGoals) ? rawGoals : [];
+  const debts = Array.isArray(rawDebts) ? rawDebts : [];
+  const investments = Array.isArray(rawInvestments) ? rawInvestments : [];
 
+  useIncomeSources(); // mantido por consistência do fluxo global
+
+  /* -----------------------------------------------------------
+   * Paywall
+   ----------------------------------------------------------- */
   const [showPaywall, setShowPaywall] = useState(false);
   const [blockedType, setBlockedType] = useState<
     "goal" | "debt" | "investment" | null
   >(null);
 
-  /* ORDENAR METAS */
+  /* -----------------------------------------------------------
+   * Ordenações (SEGURAS)
+   ----------------------------------------------------------- */
   const orderedGoals = useMemo(() => {
     return [...goals].sort((a, b) => {
       if (a.isPrimary) return -1;
@@ -76,7 +88,6 @@ export default function GoalsIndexScreen() {
 
   const otherGoals = orderedGoals.filter((g) => !g.isPrimary);
 
-  /* DÍVIDAS */
   const orderedDebts = useMemo(() => {
     return [...debts].sort((a, b) => {
       if (a.isPrimary) return -1;
@@ -88,32 +99,26 @@ export default function GoalsIndexScreen() {
   const mainDebt = orderedDebts[0] ?? null;
   const otherDebts = orderedDebts.slice(1);
 
-  /* PAYWALL */
+  /* -----------------------------------------------------------
+   * Paywall logic
+   ----------------------------------------------------------- */
   const isPaywallLimit = useCallback(
     (type: "goal" | "debt" | "investment") => {
       if (isPro) return false;
-
       if (type === "goal" && goals.length >= 1) return true;
       if (type === "debt" && debts.length >= 1) return true;
       if (type === "investment" && investments.length >= 1) return true;
-
       return false;
     },
     [isPro, goals, debts, investments]
   );
 
-  /* NAVIGATION */
-  const openDetail = (id: string) => router.push(`/goals/${id}`);
-  const openContribution = (id: string) =>
-    router.push(`/goals/details/add?id=${id}`);
-  const openEdit = (id: string) =>
-    router.push(`/goals/details/edit?id=${id}`);
-  const openDebtPay = (id: string) =>
-    router.push(`/goals/details/debt-pay?id=${id}`);
-  const openDebtEdit = (id: string) =>
-    router.push(`/goals/details/debt-edit?id=${id}`);
-  const openDebtSettle = (id: string) =>
-    router.push(`/goals/details/debt-settle?id=${id}`);
+  /* -----------------------------------------------------------
+   * Navegação
+   ----------------------------------------------------------- */
+  const openDetail = (id: string) => {
+    router.push(`/goals/${id}`);
+  };
 
   const openCreate = () => {
     const type =
@@ -139,14 +144,19 @@ export default function GoalsIndexScreen() {
     router.push(`/goals/create?type=${type}`);
   };
 
-  /* UI */
+  /* -----------------------------------------------------------
+   * UI
+   ----------------------------------------------------------- */
   return (
     <View style={styles.container}>
       <ScrollView
-        style={{ flex: 1 }}
         contentContainerStyle={{ paddingBottom: 40 }}
         refreshControl={
-          <RefreshControl tintColor="#fff" refreshing={false} onRefresh={reload} />
+          <RefreshControl
+            tintColor="#fff"
+            refreshing={false}
+            onRefresh={reload}
+          />
         }
       >
         <GoalsHeader />
@@ -155,111 +165,71 @@ export default function GoalsIndexScreen() {
           <GoalsSegmented value={tab} onChange={(v) => setTab(v as any)} />
         </View>
 
-        {/* RENDA — comportamento ORIGINAL preservado (sem push) */}
-        {tab === "income" && (
-          <View style={{ marginTop: 6 }}>
-            <GoalsIncomeBlock />
-          </View>
-        )}
+        {/* RENDA */}
+        {tab === "income" && <GoalsIncomeBlock />}
 
         {/* DÍVIDAS */}
         {tab === "debts" && (
           <>
             {mainDebt && (
-              <View style={{ marginTop: 6 }}>
-                <GoalDebtMainCard
-                  debt={mainDebt}
-                  onPressPay={() => openDebtPay(mainDebt.id)}
-                  onPressEdit={() => openDebtEdit(mainDebt.id)}
-                  onPressSettle={() => openDebtSettle(mainDebt.id)}
-                />
-              </View>
+              <GoalDebtMainCard
+                debt={mainDebt}
+                onPressPay={() => openDetail(mainDebt.id)}
+                onPressEdit={() => openDetail(mainDebt.id)}
+              />
             )}
-
             <GoalsDebtList debts={otherDebts} onPress={openDetail} />
           </>
         )}
 
         {/* INVESTIMENTOS */}
         {tab === "investments" && (
-          <View style={{ marginTop: 6 }}>
-            {investments.length > 0 && (
+          <>
+            {investments[0] && (
               <GoalInvestmentMainCard
                 goal={investments[0]}
                 isPro={isPro}
                 onPress={() => openDetail(investments[0].id)}
+                onPressAdd={() => openDetail(investments[0].id)}
+                onPressEdit={() => openDetail(investments[0].id)}
               />
             )}
-
             <GoalsInvestmentList
               investments={investments.slice(1)}
               isPro={isPro}
               onPress={openDetail}
-              onPressUpgrade={() => {
-                setBlockedType("investment");
-                setShowPaywall(true);
-              }}
             />
-          </View>
+          </>
         )}
 
         {/* METAS */}
         {tab === "goals" && (
           <>
             {mainGoal && (
-              <View style={{ marginTop: 6 }}>
-                <GoalMainCard
-                  goal={mainGoal}
-                  progress={mainGoal.progressPercent / 100}
-                  remainingAmount={mainGoal.remainingAmount}
-                  nextInstallment={nextInstallment(mainGoal.id)}
-                  isPro={isPro}
-                  onPressDetails={() =>
-                    mainGoal.type === "debt"
-                      ? openDebtPay(mainGoal.id)
-                      : openContribution(mainGoal.id)
-                  }
-                  onPressEdit={() =>
-                    mainGoal.type === "debt"
-                      ? openDebtEdit(mainGoal.id)
-                      : openEdit(mainGoal.id)
-                  }
-                />
-              </View>
+              <GoalMainCard
+                goal={mainGoal}
+                progress={mainGoal.progressPercent / 100}
+                remainingAmount={mainGoal.remainingAmount}
+                nextInstallment={nextInstallment(mainGoal.id)}
+                isPro={isPro}
+                onPressDetails={() => openDetail(mainGoal.id)}
+                onPressEdit={() => openDetail(mainGoal.id)}
+              />
             )}
 
             {otherGoals.length === 0 ? (
               <GoalsEmptyState />
             ) : (
               otherGoals.map((g) => (
-                <GoalCard key={g.id} goal={g} onPress={() => openDetail(g.id)} />
+                <GoalCard
+                  key={g.id}
+                  goal={g}
+                  onPress={() => openDetail(g.id)}
+                />
               ))
             )}
           </>
         )}
-
-        {/* INSIGHTS — final da tela */}
-        <View style={{ marginTop: 28, marginBottom: 20 }}>
-          <Text style={styles.sectionTitle}>Insights</Text>
-
-          {insightsLoading ? (
-            <Text style={styles.noInsights}>Carregando insights...</Text>
-          ) : !insights || insights.length === 0 ? (
-            <Text style={styles.noInsights}>Nenhum insight disponível.</Text>
-          ) : (
-            insights.map((insight, idx) => (
-              <GoalsInsightsCard
-                key={insight.id ?? idx}
-                insight={insight}
-                isPro={isPro}
-                onPressUpgrade={() => {
-                  setBlockedType("goal");
-                  setShowPaywall(true);
-                }}
-              />
-            ))
-          )}
-        </View>
 
         {/* CTA */}
         <View style={styles.footer}>
@@ -278,7 +248,7 @@ export default function GoalsIndexScreen() {
       {/* PAYWALL */}
       {showPaywall && (
         <ModalPremiumPaywall
-          visible={showPaywall}
+          visible
           blockedType={blockedType}
           onClose={() => {
             setShowPaywall(false);
@@ -299,20 +269,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "black",
-  },
-  sectionTitle: {
-    marginLeft: 18,
-    marginBottom: 8,
-    fontFamily: brandFont,
-    fontSize: 17,
-    fontWeight: "600",
-    color: "white",
-  },
-  noInsights: {
-    fontFamily: brandFont,
-    fontSize: 13,
-    marginLeft: 20,
-    color: "rgba(255,255,255,0.45)",
   },
   footer: {
     paddingHorizontal: 20,
