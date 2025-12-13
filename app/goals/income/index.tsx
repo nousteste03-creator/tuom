@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -8,106 +8,170 @@ import {
   Platform,
   Alert,
 } from "react-native";
-
 import { useRouter } from "expo-router";
-import { BlurView } from "expo-blur";
 
+import Screen from "@/components/layout/Screen";
 import { useIncomeSources } from "@/hooks/useIncomeSources";
 import { useUserPlan } from "@/hooks/useUserPlan";
 import { supabase } from "@/lib/supabase";
 
+/* -----------------------------------------------------------
+   FONT
+----------------------------------------------------------- */
 const brandFont = Platform.select({
   ios: "SF Pro Display",
   android: "Inter",
   default: "System",
 });
 
-export default function IncomeScreen() {
+/* -----------------------------------------------------------
+   HELPERS
+----------------------------------------------------------- */
+function formatBRL(value: number) {
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    minimumFractionDigits: 2,
+  }).format(value);
+}
+
+/* -----------------------------------------------------------
+   TIPOS
+----------------------------------------------------------- */
+type IncomeEvent = {
+  id: string;
+  name: string;
+  amount: number;
+  day: number;
+};
+
+export default function IncomeIndexScreen() {
+  console.log("🔥 INCOME INDEX — PASSO 2 (IA)");
+
   const router = useRouter();
   const { incomeSources, deleteIncomeSource, reload } = useIncomeSources();
-  const { plan, isPro } = useUserPlan();
+  const { isPro } = useUserPlan();
 
-  const [insight, setInsight] = useState<string | null>(null);
-  const [insightLoading, setInsightLoading] = useState(false);
+  const [analysisText, setAnalysisText] = useState<string | null>(null);
+  const [loadingAnalysis, setLoadingAnalysis] = useState(false);
 
-  /* --------------------------------------------------------
-     TOTAL MENSAL
-  -------------------------------------------------------- */
+  /* =========================================================
+     TOTAL
+  ========================================================= */
   const totalMonthly = useMemo(() => {
-    if (!incomeSources || incomeSources.length === 0) return 0;
-    return incomeSources.reduce((sum, item) => {
-      const amt = Number(item.amount ?? 0);
-      return sum + amt;
-    }, 0);
+    return incomeSources.reduce(
+      (sum, src) => sum + Number(src.amount ?? 0),
+      0
+    );
   }, [incomeSources]);
 
-  /* --------------------------------------------------------
-     DISTRIBUIÇÃO
-  -------------------------------------------------------- */
-  const distribution = useMemo(() => {
-    if (!incomeSources || incomeSources.length === 0) return [];
-    return incomeSources.map((item) => {
-      const amount = Number(item.amount ?? 0);
-      const pct = totalMonthly > 0 ? amount / totalMonthly : 0;
-      return { id: item.id, label: item.name, amount, pct };
-    });
-  }, [incomeSources, totalMonthly]);
+  const totalYearly = totalMonthly * 12;
 
-  /* --------------------------------------------------------
-     INSIGHTS PRO
-  -------------------------------------------------------- */
+  /* =========================================================
+     EVENTS TIMELINE
+  ========================================================= */
+  const events: IncomeEvent[] = useMemo(() => {
+    const count = incomeSources.length;
+    if (count === 0) return [];
+
+    let days: number[] = [];
+
+    if (count === 1) days = [5];
+    else if (count === 2) days = [5, 20];
+    else if (count === 3) days = [5, 15, 25];
+    else {
+      days = incomeSources.map((_, i) =>
+        Math.round(((i + 1) / (count + 1)) * 28)
+      );
+    }
+
+    return incomeSources.map((src, i) => ({
+      id: src.id,
+      name: src.name,
+      amount: Number(src.amount ?? 0),
+      day: days[i] ?? 15,
+    }));
+  }, [incomeSources]);
+
+  /* =========================================================
+     HEURÍSTICA LOCAL (FALLBACK)
+  ========================================================= */
+  const localInsight = useMemo(() => {
+    if (events.length === 0) return null;
+
+    if (events.length === 1) {
+      return "Sua renda mensal depende de uma única fonte, o que pode aumentar a sensibilidade a atrasos ou interrupções.";
+    }
+
+    const biggest = Math.max(...events.map(e => e.amount));
+    const concentration = biggest / totalMonthly;
+
+    if (concentration > 0.6) {
+      return "Grande parte da sua renda mensal está concentrada em uma única entrada, indicando dependência elevada de um evento específico.";
+    }
+
+    return "Sua renda apresenta uma distribuição relativamente equilibrada ao longo do mês, o que tende a trazer mais previsibilidade.";
+  }, [events, totalMonthly]);
+
+  /* =========================================================
+     IA — INSIGHT
+  ========================================================= */
   useEffect(() => {
-    if (!isPro || incomeSources.length === 0) {
-      setInsight(null);
+    if (events.length === 0) {
+      setAnalysisText(null);
       return;
     }
 
     async function loadInsight() {
       try {
-        setInsightLoading(true);
+        setLoadingAnalysis(true);
 
         const payload = {
           totalMonthly,
-          sources: incomeSources.map((src) => ({
-            name: src.name,
-            amount: Number(src.amount ?? 0),
-            frequency: src.frequency,
+          totalYearly,
+          sourcesCount: incomeSources.length,
+          events: events.map(e => ({
+            day: e.day,
+            amount: e.amount,
           })),
         };
 
-        const { data, error } = await supabase.functions.invoke(
-          "income-insights-premium",
-          { body: payload }
-        );
+        const fn = isPro
+          ? "income-insights-premium"
+          : "income-insights-free";
+
+        const { data, error } = await supabase.functions.invoke(fn, {
+          body: payload,
+        });
 
         if (error) {
-          setInsight(null);
-        } else {
-          const text =
-            (data as any)?.insightText ??
-            (data as any)?.text ??
-            (data as any)?.message ??
-            null;
-
-          setInsight(typeof text === "string" ? text : null);
+          setAnalysisText(localInsight);
+          return;
         }
+
+        const text =
+          (data as any)?.insightText ??
+          (data as any)?.text ??
+          null;
+
+        setAnalysisText(typeof text === "string" ? text : localInsight);
       } catch {
-        setInsight(null);
+        setAnalysisText(localInsight);
       } finally {
-        setInsightLoading(false);
+        setLoadingAnalysis(false);
       }
     }
 
     loadInsight();
-  }, [incomeSources, isPro, totalMonthly]);
+  }, [events, isPro, localInsight, totalMonthly, totalYearly]);
 
-  /* --------------------------------------------------------
+  /* =========================================================
      DELETE
-  -------------------------------------------------------- */
+  ========================================================= */
   function handleDelete(id: string) {
     Alert.alert(
       "Excluir receita",
-      "Tem certeza que deseja excluir esta receita?",
+      "Deseja realmente excluir esta receita?",
       [
         { text: "Cancelar", style: "cancel" },
         {
@@ -122,105 +186,104 @@ export default function IncomeScreen() {
     );
   }
 
-  /* --------------------------------------------------------
+  /* =========================================================
      UI
-  -------------------------------------------------------- */
+  ========================================================= */
   return (
-    <View style={styles.container}>
+    <Screen>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 140 }}
+        contentContainerStyle={{ paddingBottom: 40 }}
       >
         {/* HEADER */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Fluxo de Renda</Text>
-          <Text style={styles.headerSubtitle}>
-            Visão consolidada das suas entradas mensais
+          <Text style={styles.title}>Fluxo de renda</Text>
+          <Text style={styles.subtitle}>
+            {formatBRL(totalMonthly)} / mês
           </Text>
         </View>
 
-        {/* PAINEL PRINCIPAL */}
-        <BlurView intensity={28} tint="dark" style={styles.mainPanel}>
-          <Text style={styles.panelLabel}>Total mensal</Text>
-          <Text style={styles.panelValue}>
-            R$ {totalMonthly.toFixed(2)}
-          </Text>
-
-          <View style={styles.panelMetaRow}>
-            <Text style={styles.panelMeta}>
-              {incomeSources.length} fonte(s)
+        {/* TIMELINE */}
+        {events.length > 0 && (
+          <View style={styles.timelineBlock}>
+            <Text style={styles.timelineTitle}>
+              Entradas previstas no mês
             </Text>
 
-            {isPro && distribution.length > 0 && (
-              <Text style={styles.panelMeta}>
-                {Math.round(distribution[0].pct * 100)}% concentrado
-              </Text>
-            )}
-          </View>
+            <View style={styles.timelineLine} />
 
-          {isPro && (
-            <Text style={styles.panelInsight}>
-              {insightLoading
-                ? "Analisando seu fluxo de renda..."
-                : insight || "Nenhum insight disponível no momento."}
-            </Text>
-          )}
-        </BlurView>
-
-        {/* DISTRIBUIÇÃO */}
-        {distribution.length > 0 && (
-          <View style={styles.distributionSection}>
-            <Text style={styles.sectionTitle}>Distribuição</Text>
-
-            {distribution.map((d) => (
-              <View key={d.id} style={styles.distRow}>
-                <Text style={styles.distLabel}>{d.label}</Text>
-
-                <View style={styles.distBarBg}>
-                  <View
-                    style={[
-                      styles.distBarFill,
-                      { width: `${Math.min(d.pct * 100, 100)}%` },
-                    ]}
-                  />
+            <View style={styles.timeline}>
+              {events.map(e => (
+                <View
+                  key={e.id}
+                  style={[
+                    styles.event,
+                    { left: `${(e.day / 30) * 100}%` },
+                  ]}
+                >
+                  <View style={styles.pill}>
+                    <Text style={styles.pillValue}>
+                      {formatBRL(e.amount)}
+                    </Text>
+                  </View>
+                  <Text style={styles.pillDay}>dia {e.day}</Text>
                 </View>
-              </View>
-            ))}
+              ))}
+            </View>
+
+            {/* ANALISE */}
+            <View style={styles.analysisBlock}>
+              <Text style={styles.analysisTitle}>
+                Análise do fluxo de renda
+              </Text>
+
+              <Text style={styles.analysisText}>
+                {loadingAnalysis
+                  ? "Analisando seu fluxo de renda…"
+                  : analysisText}
+              </Text>
+            </View>
+
+            <View style={styles.summary}>
+              <Text style={styles.summaryText}>
+                • Faturamento mensal:{" "}
+                <Text style={styles.summaryStrong}>
+                  {formatBRL(totalMonthly)}
+                </Text>
+              </Text>
+              <Text style={styles.summaryText}>
+                • Faturamento anual estimado:{" "}
+                <Text style={styles.summaryStrong}>
+                  {formatBRL(totalYearly)}
+                </Text>
+              </Text>
+            </View>
           </View>
         )}
 
         {/* LISTA */}
-        <View style={styles.listSection}>
+        <View style={styles.section}>
           <Text style={styles.sectionTitle}>Receitas</Text>
 
-          {incomeSources.length === 0 && (
-            <Text style={styles.emptyText}>
-              Nenhuma receita cadastrada.
-            </Text>
-          )}
-
-          {incomeSources.map((item) => (
-            <View key={item.id} style={styles.listItem}>
-              <View>
-                <Text style={styles.itemTitle}>{item.name}</Text>
-                <Text style={styles.itemValue}>
-                  R$ {Number(item.amount ?? 0).toFixed(2)} / mês
+          {incomeSources.map(item => (
+            <View key={item.id} style={styles.row}>
+              <TouchableOpacity
+                style={{ flex: 1 }}
+                onPress={() =>
+                  router.push(
+                    `/goals/create?type=income&edit=${item.id}`
+                  )
+                }
+              >
+                <Text style={styles.rowTitle}>{item.name}</Text>
+                <Text style={styles.rowValue}>
+                  {formatBRL(Number(item.amount ?? 0))} / mês
                 </Text>
-              </View>
+              </TouchableOpacity>
 
-              <View style={styles.actions}>
-                <TouchableOpacity
-                  onPress={() =>
-                    router.push(`/goals/create?type=income&edit=${item.id}`)
-                  }
-                >
-                  <Text style={styles.editBtn}>Editar</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity onPress={() => handleDelete(item.id)}>
-                  <Text style={styles.deleteBtn}>Excluir</Text>
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity onPress={() => handleDelete(item.id)}>
+                <Text style={styles.deleteText}>Excluir</Text>
+              </TouchableOpacity>
             </View>
           ))}
         </View>
@@ -229,206 +292,172 @@ export default function IncomeScreen() {
         <View style={styles.footer}>
           <TouchableOpacity
             style={styles.primaryBtn}
-            onPress={() => router.push("/goals/create?type=income")}
+            onPress={() =>
+              router.push("/goals/create?type=income")
+            }
           >
             <Text style={styles.primaryBtnText}>
-              Adicionar nova receita
+              + Adicionar nova receita
             </Text>
           </TouchableOpacity>
-
-          {plan === "free" && (
-            <Text style={styles.freeHint}>
-              Insights avançados disponíveis no plano PRO.
-            </Text>
-          )}
         </View>
       </ScrollView>
-    </View>
+    </Screen>
   );
 }
 
-/* --------------------------------------------------------
+/* =========================================================
    STYLES
--------------------------------------------------------- */
+========================================================= */
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#000" },
-
   header: {
     paddingHorizontal: 20,
     paddingTop: 20,
-    paddingBottom: 8,
+    paddingBottom: 10,
   },
-
-  headerTitle: {
+  title: {
     fontFamily: brandFont,
-    color: "#fff",
     fontSize: 26,
     fontWeight: "700",
+    color: "#fff",
   },
-
-  headerSubtitle: {
+  subtitle: {
     fontFamily: brandFont,
-    color: "rgba(255,255,255,0.55)",
-    fontSize: 14,
-    marginTop: 2,
+    fontSize: 16,
+    color: "rgba(255,255,255,0.6)",
+    marginTop: 4,
   },
 
-  mainPanel: {
-    marginHorizontal: 16,
-    marginTop: 16,
-    padding: 22,
-    borderRadius: 22,
+  timelineBlock: {
+    marginTop: 24,
+    paddingHorizontal: 20,
+  },
+  timelineTitle: {
+    fontFamily: brandFont,
+    fontSize: 14,
+    color: "rgba(255,255,255,0.6)",
+    marginBottom: 12,
+  },
+  timelineLine: {
+    height: 1,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    marginBottom: 18,
+  },
+  timeline: {
+    height: 60,
+    position: "relative",
+  },
+  event: {
+    position: "absolute",
+    alignItems: "center",
+  },
+  pill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.12)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-    backgroundColor: "rgba(255,255,255,0.04)",
+    borderColor: "rgba(255,255,255,0.2)",
   },
-
-  panelLabel: {
-    color: "rgba(255,255,255,0.6)",
+  pillValue: {
     fontFamily: brandFont,
-    fontSize: 13,
-  },
-
-  panelValue: {
+    fontSize: 12,
     color: "#fff",
+    fontWeight: "600",
+  },
+  pillDay: {
+    marginTop: 4,
     fontFamily: brandFont,
-    fontSize: 26,
-    fontWeight: "700",
-    marginTop: 2,
+    fontSize: 11,
+    color: "rgba(255,255,255,0.45)",
   },
 
-  panelMetaRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 12,
+  analysisBlock: {
+    marginTop: 14,
   },
-
-  panelMeta: {
-    color: "rgba(255,255,255,0.6)",
-    fontFamily: brandFont,
-    fontSize: 13,
-  },
-
-  panelInsight: {
-    marginTop: 16,
-    color: "rgba(255,255,255,0.9)",
+  analysisTitle: {
     fontFamily: brandFont,
     fontSize: 14,
-    lineHeight: 20,
-  },
-
-  distributionSection: { marginTop: 22 },
-
-  sectionTitle: {
-    fontFamily: brandFont,
-    color: "#fff",
-    fontSize: 18,
     fontWeight: "600",
-    marginBottom: 10,
-    marginLeft: 18,
-  },
-
-  distRow: { paddingHorizontal: 18, marginBottom: 14 },
-
-  distLabel: {
     color: "#fff",
-    fontFamily: brandFont,
-    fontSize: 13,
     marginBottom: 4,
   },
-
-  distBarBg: {
-    width: "100%",
-    height: 8,
-    backgroundColor: "rgba(255,255,255,0.08)",
-    borderRadius: 8,
-    overflow: "hidden",
-  },
-
-  distBarFill: {
-    height: "100%",
-    backgroundColor: "#3EC6FF",
-    borderRadius: 8,
-  },
-
-  listSection: { marginTop: 24 },
-
-  emptyText: {
-    color: "rgba(255,255,255,0.5)",
-    marginLeft: 20,
+  analysisText: {
     fontFamily: brandFont,
+    fontSize: 13,
+    lineHeight: 18,
+    color: "rgba(255,255,255,0.75)",
   },
 
-  listItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.06)",
+  summary: {
+    marginTop: 10,
   },
-
-  itemTitle: {
+  summaryText: {
+    fontFamily: brandFont,
+    fontSize: 13,
+    color: "rgba(255,255,255,0.55)",
+    marginTop: 2,
+  },
+  summaryStrong: {
     color: "#fff",
-    fontSize: 16,
-    fontFamily: brandFont,
     fontWeight: "600",
   },
 
-  itemValue: {
-    color: "rgba(255,255,255,0.65)",
-    fontSize: 13,
-    marginTop: 2,
-    fontFamily: brandFont,
+  section: {
+    marginTop: 30,
   },
-
-  actions: {
+  sectionTitle: {
+    marginLeft: 20,
+    marginBottom: 10,
+    fontFamily: brandFont,
+    fontSize: 17,
+    fontWeight: "600",
+    color: "#fff",
+  },
+  row: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.06)",
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
   },
-
-  editBtn: {
-    color: "#3EC6FF",
-    fontSize: 13,
+  rowTitle: {
     fontFamily: brandFont,
-    marginRight: 16,
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#fff",
   },
-
-  deleteBtn: {
-    color: "#FF4D4D",
-    fontSize: 13,
+  rowValue: {
     fontFamily: brandFont,
+    fontSize: 13,
+    color: "rgba(255,255,255,0.6)",
+    marginTop: 2,
+  },
+  deleteText: {
+    fontFamily: brandFont,
+    fontSize: 13,
+    color: "rgba(255,255,255,0.5)",
   },
 
   footer: {
     paddingHorizontal: 20,
-    marginTop: 28,
-    paddingBottom: 32,
+    marginTop: 30,
   },
-
   primaryBtn: {
-    backgroundColor: "rgba(255,255,255,0.1)",
     height: 52,
     borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.1)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
   },
-
   primaryBtnText: {
-    color: "#fff",
-    fontSize: 16,
+    fontFamily: brandFont,
+    fontSize: 15,
     fontWeight: "600",
-    fontFamily: brandFont,
-  },
-
-  freeHint: {
-    marginTop: 10,
-    textAlign: "center",
-    fontFamily: brandFont,
-    fontSize: 12,
-    color: "rgba(255,255,255,0.55)",
+    color: "#fff",
   },
 });

@@ -1,5 +1,3 @@
-// app/goals/index.tsx
-
 import React, { useMemo, useState, useCallback } from "react";
 import {
   View,
@@ -68,9 +66,7 @@ export default function GoalsIndexScreen() {
    * Paywall
    ----------------------------------------------------------- */
   const [showPaywall, setShowPaywall] = useState(false);
-  const [blockedType, setBlockedType] = useState<
-    "goal" | "debt" | "investment" | null
-  >(null);
+  const [blockedType, setBlockedType] = useState<"goal" | "debt" | "investment" | null>(null);
 
   /* -----------------------------------------------------------
    * Ordenações (SEGURAS)
@@ -131,7 +127,8 @@ export default function GoalsIndexScreen() {
         : "income";
 
     if (type === "income") {
-      router.push(`/goals/create?type=income`);
+      // Aqui ajustamos para abrir a tela de gerenciar receita
+      router.push("/goals/income/index");
       return;
     }
 

@@ -43,8 +43,8 @@ export default function GoalProgressBar({
 
   const gradientColors =
     color === "green"
-      ? (["#2ECC71", "#27AE60", "#1E8449"] as const)
-      : (["#6268FF", "#8A8FFF", "#AFAFFF"] as const);
+      ? (["#8db8b8ff", "#a5cbd8ff", "#91c5d1ff"] as const)
+      : (["#7cb7b4ff", "#bde5f2ff", "#cae7f3ff"] as const);
 
   return (
     <View

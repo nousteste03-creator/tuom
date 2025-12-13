@@ -126,8 +126,8 @@ export default function GoalInstallmentsTimeline({ installments }: Props) {
             }
 
             if (isCurrent) {
-              backgroundColor = "rgba(138,143,255,0.18)";
-              borderColor = "rgba(138,143,255,0.9)";
+              backgroundColor = "rgba(85, 141, 183, 0.28)";
+              borderColor = "rgba(143, 180, 194, 0.9)";
               labelColor = "rgba(255,255,255,0.85)";
               amountColor = "#FFFFFF";
             }
@@ -266,7 +266,7 @@ const styles = StyleSheet.create({
   },
 
   statusCurrent: {
-    backgroundColor: "rgba(138,143,255,0.95)",
+    backgroundColor: "rgba(80, 205, 224, 0.95)",
   },
 
   statusOverdue: {

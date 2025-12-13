@@ -185,7 +185,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     marginHorizontal: 6,
     borderRadius: 12,
-    backgroundColor: "rgba(255,255,255,0.08)",
+    backgroundColor: "rgba(201, 220, 213, 0.2)",
     alignItems: "center",
   },
 
@@ -214,7 +214,7 @@ const styles = StyleSheet.create({
   },
 
   segmentItemActive: {
-    backgroundColor: "rgba(255,255,255,0.16)",
+    backgroundColor: "rgba(131, 207, 235, 0.16)",
   },
 
   segmentText: {

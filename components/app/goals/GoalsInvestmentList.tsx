@@ -140,7 +140,7 @@ const styles = StyleSheet.create({
 
   progressFill: {
     height: 6,
-    backgroundColor: "#8A8FFF",
+    backgroundColor: "#cff6c8ff",
   },
 
   /* ===== Empty ===== */

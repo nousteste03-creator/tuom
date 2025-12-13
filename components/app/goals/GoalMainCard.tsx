@@ -442,7 +442,7 @@ const styles = StyleSheet.create({
   insightTitle: {
     fontFamily: brandFont,
     fontSize: 12,
-    color: "#c7f1ef",
+    color: "#a8e1deff",
     marginBottom: 4,
   },
 

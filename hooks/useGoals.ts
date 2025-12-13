@@ -851,6 +851,21 @@ export function useGoals() {
   );
 
   /* ============================================================
+     DELETE GOAL (ADICIONADO — ÚNICA MUDANÇA)
+  ============================================================ */
+
+  const deleteGoal = useCallback(
+    async (goalId: string) => {
+      // ordem segura: apaga installments primeiro, depois o goal
+      await supabase.from("goal_installments").delete().eq("goal_id", goalId);
+      await supabase.from("goals").delete().eq("id", goalId);
+
+      await reload();
+    },
+    [reload]
+  );
+
+  /* ============================================================
      INSTALLMENTS OPS
   ============================================================ */
 
@@ -1133,6 +1148,7 @@ export function useGoals() {
 
     reload,
     setPrimaryGoal,
+    deleteGoal, // ✅ ADICIONADO (ÚNICA MUDANÇA NO RETURN)
     createGoal,
     updateGoal,
     markInstallmentPaid,

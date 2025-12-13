@@ -187,7 +187,7 @@ export default function GoalDebtMainCard({
               }}
             >
               <LinearGradient
-                colors={["#e2b7b7", "#ff8e8e", "#ff7a7a"]}
+                colors={["#8e4242ff", "#b97272ff", "#925c5cff"]}
                 locations={[0, 0.6, 1]}
                 start={{ x: 0, y: 0.5 }}
                 end={{ x: 1, y: 0.5 }}
@@ -419,7 +419,7 @@ const styles = StyleSheet.create({
     fontFamily: brandFont,
     fontSize: 13,
     fontWeight: "600",
-    color: "#fff",
+    color: "#e4dedeff",
   },
 
   secondaryButton: {
@@ -435,14 +435,14 @@ const styles = StyleSheet.create({
   secondaryButtonText: {
     fontFamily: brandFont,
     fontSize: 13,
-    color: "#fff",
+    color: "#e4dedeff",
   },
 
   settleButton: {
     marginTop: 14,
     paddingVertical: 12,
     borderRadius: 999,
-    backgroundColor: "#FF7A7A",
+    backgroundColor: "#f6f6f6ff",
     alignItems: "center",
   },
 

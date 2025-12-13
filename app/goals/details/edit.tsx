@@ -1,4 +1,3 @@
-// app/goals/details/edit.tsx
 import React, { useMemo, useState } from "react";
 import {
   View,
@@ -10,6 +9,7 @@ import {
   Platform,
   KeyboardAvoidingView,
   ScrollView,
+  Alert,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { BlurView } from "expo-blur";
@@ -37,7 +37,7 @@ export default function EditGoalScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
 
-  const { goals, updateGoal, setPrimaryGoal } = useGoals();
+  const { goals, updateGoal, setPrimaryGoal, deleteGoal } = useGoals();
 
   const goal = useMemo(
     () => goals.find((g) => g.id === id),
@@ -79,7 +79,6 @@ export default function EditGoalScreen() {
       });
 
       if (isPrimary && !goal.isPrimary) {
-        // garante que só exista 1 meta principal
         await setPrimaryGoal(goal.id);
       }
 
@@ -88,6 +87,28 @@ export default function EditGoalScreen() {
       console.log("ERROR/EditGoalScreen:", err);
       setSaving(false);
     }
+  }
+
+  function handleDelete() {
+    Alert.alert(
+      "Excluir meta",
+      "Essa ação é permanente. Deseja realmente excluir esta meta?",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Excluir",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteGoal(goal.id);
+              router.back();
+            } catch (err) {
+              console.log("ERROR/DeleteGoal:", err);
+            }
+          },
+        },
+      ]
+    );
   }
 
   return (
@@ -108,7 +129,6 @@ export default function EditGoalScreen() {
 
           {/* CARD PRINCIPAL DE EDIÇÃO */}
           <BlurView intensity={40} tint="dark" style={styles.card}>
-            {/* Título */}
             <Text style={styles.label}>Nome da meta</Text>
             <TextInput
               style={styles.input}
@@ -118,7 +138,6 @@ export default function EditGoalScreen() {
               placeholderTextColor="rgba(255,255,255,0.3)"
             />
 
-            {/* Valor alvo */}
             <Text style={[styles.label, { marginTop: 14 }]}>Valor alvo</Text>
             <View style={styles.amountRow}>
               <Text style={styles.currencyPrefix}>R$</Text>
@@ -132,7 +151,6 @@ export default function EditGoalScreen() {
               />
             </View>
 
-            {/* Data final (opcional) */}
             <Text style={[styles.label, { marginTop: 14 }]}>
               Data final (opcional) — formato AAAA-MM-DD
             </Text>
@@ -144,7 +162,6 @@ export default function EditGoalScreen() {
               placeholderTextColor="rgba(255,255,255,0.3)"
             />
 
-            {/* Notas */}
             <Text style={[styles.label, { marginTop: 14 }]}>Notas</Text>
             <TextInput
               style={[styles.input, { height: 80, textAlignVertical: "top" }]}
@@ -155,7 +172,6 @@ export default function EditGoalScreen() {
               multiline
             />
 
-            {/* Meta principal */}
             <View style={styles.primaryRow}>
               <View>
                 <Text style={styles.label}>Meta principal</Text>
@@ -193,6 +209,14 @@ export default function EditGoalScreen() {
             >
               <Text style={styles.secondaryButtonText}>Cancelar</Text>
             </TouchableOpacity>
+
+            {/* EXCLUIR META — ÚNICA ADIÇÃO */}
+            <TouchableOpacity
+              style={[styles.button, styles.secondaryButton]}
+              onPress={handleDelete}
+            >
+              <Text style={styles.secondaryButtonText}>Excluir meta</Text>
+            </TouchableOpacity>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -201,43 +225,12 @@ export default function EditGoalScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "black",
-  },
-
-  center: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  loadingText: {
-    fontFamily: brandFont,
-    fontSize: 14,
-    color: "rgba(255,255,255,0.7)",
-  },
-
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 8,
-  },
-
-  title: {
-    fontFamily: brandFont,
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#FFFFFF",
-  },
-
-  subtitle: {
-    fontFamily: brandFont,
-    fontSize: 14,
-    color: "rgba(255,255,255,0.6)",
-    marginTop: 2,
-  },
-
+  container: { flex: 1, backgroundColor: "black" },
+  center: { flex: 1, alignItems: "center", justifyContent: "center" },
+  loadingText: { fontFamily: brandFont, fontSize: 14, color: "rgba(255,255,255,0.7)" },
+  header: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 8 },
+  title: { fontFamily: brandFont, fontSize: 24, fontWeight: "700", color: "#FFFFFF" },
+  subtitle: { fontFamily: brandFont, fontSize: 14, color: "rgba(255,255,255,0.6)", marginTop: 2 },
   card: {
     marginHorizontal: 16,
     marginTop: 12,
@@ -247,13 +240,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.08)",
   },
-
-  label: {
-    fontFamily: brandFont,
-    fontSize: 12,
-    color: "rgba(255,255,255,0.65)",
-  },
-
+  label: { fontFamily: brandFont, fontSize: 12, color: "rgba(255,255,255,0.65)" },
   input: {
     marginTop: 4,
     paddingVertical: 6,
@@ -266,20 +253,8 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     backgroundColor: "rgba(0,0,0,0.35)",
   },
-
-  amountRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 4,
-  },
-
-  currencyPrefix: {
-    fontFamily: brandFont,
-    fontSize: 16,
-    color: "rgba(255,255,255,0.7)",
-    marginRight: 6,
-  },
-
+  amountRow: { flexDirection: "row", alignItems: "center", marginTop: 4 },
+  currencyPrefix: { fontFamily: brandFont, fontSize: 16, color: "rgba(255,255,255,0.7)", marginRight: 6 },
   amountInput: {
     flex: 1,
     paddingVertical: 6,
@@ -292,54 +267,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     backgroundColor: "rgba(0,0,0,0.35)",
   },
-
-  primaryRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: 18,
-  },
-
-  primaryHint: {
-    fontFamily: brandFont,
-    fontSize: 11,
-    color: "rgba(255,255,255,0.45)",
-    marginTop: 2,
-    maxWidth: 230,
-  },
-
-  footer: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-  },
-
-  button: {
-    paddingVertical: 13,
-    borderRadius: 18,
-    alignItems: "center",
-  },
-
+  primaryRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 18 },
+  primaryHint: { fontFamily: brandFont, fontSize: 11, color: "rgba(255,255,255,0.45)", marginTop: 2, maxWidth: 230 },
+  footer: { paddingHorizontal: 20, paddingTop: 20 },
+  button: { paddingVertical: 13, borderRadius: 18, alignItems: "center" },
   primaryButton: {
     backgroundColor: "rgba(255,255,255,0.12)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.25)",
   },
-
-  primaryButtonText: {
-    fontFamily: brandFont,
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#FFFFFF",
-  },
-
-  secondaryButton: {
-    marginTop: 10,
-    backgroundColor: "transparent",
-  },
-
-  secondaryButtonText: {
-    fontFamily: brandFont,
-    fontSize: 13,
-    color: "rgba(255,255,255,0.6)",
-  },
+  primaryButtonText: { fontFamily: brandFont, fontSize: 14, fontWeight: "600", color: "#FFFFFF" },
+  secondaryButton: { marginTop: 10, backgroundColor: "transparent" },
+  secondaryButtonText: { fontFamily: brandFont, fontSize: 13, color: "rgba(255,255,255,0.6)" },
 });

@@ -86,7 +86,7 @@ export default function GoalsDebtList({ debts, onPress }: GoalsDebtListProps) {
                         styles.progressFill,
                         {
                           width: `${progress}%`,
-                          backgroundColor: isNearFinish ? "#FF7A7A" : "#8A8FFF",
+                          backgroundColor: isNearFinish ? "#FF7A7A" : "#f09191ff",
                         },
                       ]}
                     />
