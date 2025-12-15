@@ -6,14 +6,22 @@ import { useBudget } from "./useBudget";
 import { useIncomeSources } from "@/hooks/useIncomeSources";
 import { useGoals } from "@/context/GoalsContext";
 import { useOpenFinance } from "./useOpenFinance";
+import { useUserSettings } from "@/context/UserSettingsContext";
 
 export function useFinance() {
+  /* =========================================================
+     SETTINGS
+  ========================================================= */
+
+  const { settings } = useUserSettings();
+
   /* =========================================================
      FONTES
   ========================================================= */
 
   // Assinaturas
-  const { monthlyTotal: subsTotal, reload: reloadSubs } = useSubscriptions();
+  const { monthlyTotal: subsTotal, reload: reloadSubs } =
+    useSubscriptions();
 
   // Orçamento
   const {
@@ -29,10 +37,11 @@ export function useFinance() {
     reload: reloadIncome,
   } = useIncomeSources();
 
-  // Metas / Dívidas
+  // Metas / Dívidas / Investimentos
   const {
     debts,
     monthlyDebtOutflow,
+    monthlyInvestmentOutflow,
     reload: reloadGoals,
   } = useGoals();
 
@@ -52,7 +61,10 @@ export function useFinance() {
   }, [incomeSources]);
 
   const variableIncomeTotal = useMemo(() => {
-    return variableIncome.reduce((acc, src) => acc + Number(src.amount || 0), 0);
+    return variableIncome.reduce(
+      (acc, src) => acc + Number(src.amount || 0),
+      0
+    );
   }, [variableIncome]);
 
   /* =========================================================
@@ -80,8 +92,16 @@ export function useFinance() {
      SAÍDAS MENSAIS (RECORRENTES)
   ========================================================= */
 
+  const investmentsOutflow =
+    settings?.consider_investments_in_cashflow
+      ? monthlyInvestmentOutflow
+      : 0;
+
   const monthlyExpenses =
-    subsTotal + budgetTotal + monthlyDebtOutflow;
+    subsTotal +
+    budgetTotal +
+    monthlyDebtOutflow +
+    investmentsOutflow;
 
   /* =========================================================
      ENTRADAS MENSAIS (RECORRENTES)
