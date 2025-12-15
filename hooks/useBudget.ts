@@ -1,5 +1,5 @@
 // hooks/useBudget.ts
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { useSubscriptions } from "./useSubscriptions";
 
@@ -16,6 +16,7 @@ export function useBudget() {
   // -----------------------------------------------------------
   const month = new Date().toISOString().slice(0, 7);
   const startDate = `${month}-01`;
+
   const nextMonth = new Date(
     Number(month.slice(0, 4)),
     Number(month.slice(5, 7)),
@@ -27,7 +28,9 @@ export function useBudget() {
   // -----------------------------------------------------------
   // LOAD
   // -----------------------------------------------------------
-  async function load() {
+  const load = useCallback(async () => {
+    console.log("🔥 useBudget.load()", { month, startDate, nextMonth });
+
     setLoading(true);
 
     const {
@@ -41,14 +44,18 @@ export function useBudget() {
       return;
     }
 
-    const { data: cat } = await supabase
+    const { data: cat, error: catError } = await supabase
       .from("budget_categories")
       .select("*")
       .eq("user_id", user.id)
       .eq("month", month)
       .order("created_at", { ascending: true });
 
-    const { data: exp } = await supabase
+    if (catError) {
+      console.log("ERROR/useBudget.load.categories:", catError);
+    }
+
+    const { data: exp, error: expError } = await supabase
       .from("budget_expenses")
       .select("*")
       .eq("user_id", user.id)
@@ -56,14 +63,24 @@ export function useBudget() {
       .lt("date", nextMonth)
       .order("date", { ascending: true });
 
+    if (expError) {
+      console.log("ERROR/useBudget.load.expenses:", expError);
+    }
+
     setCategories(cat ?? []);
     setExpenses(exp ?? []);
     setLoading(false);
-  }
+
+    console.log("✅ useBudget.loaded", {
+      categories: (cat ?? []).length,
+      expenses: (exp ?? []).length,
+    });
+  }, [month, startDate, nextMonth]);
 
   useEffect(() => {
+    console.log("🔥 useBudget montado");
     load();
-  }, [month]);
+  }, [load]);
 
   // -----------------------------------------------------------
   // CREATE CATEGORY — limit_amount padrão
@@ -85,7 +102,12 @@ export function useBudget() {
       .select()
       .maybeSingle();
 
-    if (!error && data) {
+    if (error) {
+      console.log("ERROR/createCategory:", error);
+      return null;
+    }
+
+    if (data) {
       setCategories((prev) => [...prev, data]);
       return data;
     }
@@ -109,34 +131,38 @@ export function useBudget() {
       .select()
       .maybeSingle();
 
-    if (!error && data) {
+    if (error) {
+      console.log("ERROR/updateCategory:", error);
+      return false;
+    }
+
+    if (data) {
       setCategories((prev) =>
         prev.map((c) => (c.id === id ? { ...c, ...data } : c))
       );
     }
 
-    return !error;
+    return true;
   }
 
   // -----------------------------------------------------------
   // DELETE CATEGORY
   // -----------------------------------------------------------
   async function deleteCategory(id: string) {
-    const { error } = await supabase
-      .from("budget_categories")
-      .delete()
-      .eq("id", id);
+    const { error } = await supabase.from("budget_categories").delete().eq("id", id);
 
-    if (!error) {
-      setCategories((prev) => prev.filter((c) => c.id !== id));
-      setExpenses((prev) => prev.filter((e) => e.category_id !== id));
+    if (error) {
+      console.log("ERROR/deleteCategory:", error);
+      return false;
     }
 
-    return !error;
+    setCategories((prev) => prev.filter((c) => c.id !== id));
+    setExpenses((prev) => prev.filter((e) => e.category_id !== id));
+    return true;
   }
 
   // -----------------------------------------------------------
-  // CREATE EXPENSE
+  // CREATE EXPENSE  ✅ AJUSTE: reload após insert
   // -----------------------------------------------------------
   async function addExpense({ category_id, description, amount, date }: any) {
     const {
@@ -144,24 +170,31 @@ export function useBudget() {
     } = await supabase.auth.getUser();
     if (!user) return null;
 
+    const payload = {
+      user_id: user.id,
+      category_id,
+      description,
+      amount,
+      date,
+    };
+
+    console.log("🧾 addExpense payload:", payload);
+
     const { data, error } = await supabase
       .from("budget_expenses")
-      .insert({
-        user_id: user.id,
-        category_id,
-        description,
-        amount,
-        date,
-      })
+      .insert(payload)
       .select()
       .maybeSingle();
 
-    if (!error && data) {
-      setExpenses((prev) => [...prev, data]);
-      return data;
+    if (error) {
+      console.log("ERROR/addExpense:", error);
+      return null;
     }
 
-    return null;
+    // ✅ garante consistência (mesmo se a tela atual não for a mesma instância)
+    await load();
+
+    return data ?? null;
   }
 
   // -----------------------------------------------------------
@@ -169,11 +202,9 @@ export function useBudget() {
   // -----------------------------------------------------------
   const totalsByCategory = useMemo(() => {
     const map: Record<string, number> = {};
-
     for (const e of expenses) {
       map[e.category_id] = (map[e.category_id] ?? 0) + Number(e.amount);
     }
-
     return map;
   }, [expenses]);
 
@@ -190,7 +221,6 @@ export function useBudget() {
       const spent = totalsByCategory[c.id] ?? 0;
       const limit = Number(c.limit_amount ?? 0);
       const pct = limit > 0 ? Math.min((spent / limit) * 100, 100) : 0;
-
       return { ...c, spent, limit_amount: limit, pct };
     });
 
@@ -204,12 +234,10 @@ export function useBudget() {
       month,
     };
 
-    const sanitized = processed.filter(
-      (c) => String(c.id) !== "builtin-subscriptions"
-    );
+    const sanitized = processed.filter((c) => String(c.id) !== "builtin-subscriptions");
 
     return [subscriptionCategory, ...sanitized];
-  }, [categories, totalsByCategory, subsTotal]);
+  }, [categories, totalsByCategory, subsTotal, month]);
 
   // -----------------------------------------------------------
   // TOTAL FINAL

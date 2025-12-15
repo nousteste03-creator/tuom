@@ -13,7 +13,7 @@ import { useRouter } from "expo-router";
 import Screen from "@/components/layout/Screen";
 import Icon from "@/components/ui/Icon";
 
-import { useBudget } from "@/hooks/useBudget";
+import { useBudget } from "@/context/BudgetContext";
 import { useSubscriptions } from "@/hooks/useSubscriptions";
 
 export default function BudgetIndexScreen() {

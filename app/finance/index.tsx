@@ -12,8 +12,8 @@ import Screen from "@/components/layout/Screen";
 import Icon from "@/components/ui/Icon";
 
 import { useFinance } from "@/hooks/useFinance";
-import { useBudget } from "@/hooks/useBudget";
-import { useGoals } from "@/hooks/useGoals";
+import { useBudget } from "@/context/BudgetContext";
+import { useGoals } from "@/context/GoalsContext";
 import { useUserPlan } from "@/context/UserPlanContext";
 
 import ToolsBlock from "@/components/app/finance/ToolsBlock";
@@ -100,7 +100,12 @@ export default function FinanceScreen() {
     reload: reloadBudget,
   } = useBudget();
 
-  const { mainGoal, secondaryGoals, reload: reloadGoals } = useGoals();
+  const {
+  mainGoal,
+  secondaryGoals = [],
+  reload: reloadGoals,
+} = useGoals();
+
   const { isPremium, reload: reloadPlan } = useUserPlan();
 
   const {

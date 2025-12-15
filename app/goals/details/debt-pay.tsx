@@ -16,7 +16,7 @@ import Screen from "@/components/layout/Screen";
 import GoalDebtMainCard from "@/components/app/goals/GoalDebtMainCard";
 import GoalInstallmentsTimeline from "@/components/app/goals/GoalInstallmentsTimeline";
 
-import { useGoals } from "@/hooks/useGoals";
+import { useGoals } from "@/context/GoalsContext";
 
 const brandFont = Platform.select({
   ios: "SF Pro Display",

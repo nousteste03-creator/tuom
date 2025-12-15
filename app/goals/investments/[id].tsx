@@ -26,7 +26,7 @@ import InvestmentMainBlock from "@/components/app/investments/InvestmentMainBloc
 import GoalInstallmentsTimeline from "@/components/app/goals/GoalInstallmentsTimeline";
 
 // HOOKS
-import { useGoals } from "@/hooks/useGoals";
+import { useGoals } from "@/context/GoalsContext";
 
 /* ------------------------------------------------------------ */
 

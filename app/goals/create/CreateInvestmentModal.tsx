@@ -17,7 +17,7 @@ import {
 } from "react-native";
 
 import { BlurView } from "expo-blur";
-import { useGoals } from "@/hooks/useGoals";
+import { useGoals } from "@/context/GoalsContext";
 import ModalPremiumPaywall from "@/components/app/common/ModalPremiumPaywall";
 import { supabase } from "@/lib/supabase";
 import { useUserPlan } from "@/hooks/useUserPlan";

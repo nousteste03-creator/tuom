@@ -6,10 +6,12 @@ import {
   TouchableOpacity,
   Animated,
   Platform,
+  Alert,
 } from "react-native";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import type { GoalWithStats } from "@/hooks/useGoals";
+import { useGoals } from "@/context/GoalsContext";
 
 const brandFont = Platform.select({
   ios: "SF Pro Display",
@@ -61,6 +63,8 @@ export default function GoalDebtMainCard({
   onPressSettle,
   showSettleButton = false, // só fica true dentro de debt-pay
 }: Props) {
+  const { deleteGoal } = useGoals();
+
   const [barWidth, setBarWidth] = useState(0);
   const entry = useRef(new Animated.Value(0)).current;
   const progressAnim = useRef(new Animated.Value(0)).current;
@@ -119,6 +123,30 @@ export default function GoalDebtMainCard({
   ------------------------------------------------------------- */
   const remainingPercent = 100 - (debt.progressPercent || 0);
   const canSettle = showSettleButton && remainingPercent < 20;
+
+  /* -------------------------------------------------------------
+     Delete
+  ------------------------------------------------------------- */
+  function handleDelete() {
+    Alert.alert(
+      "Excluir dívida",
+      "Essa ação é permanente. Deseja realmente excluir esta dívida?",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Excluir",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteGoal(debt.id);
+            } catch (err) {
+              console.log("ERROR/DeleteDebt:", err);
+            }
+          },
+        },
+      ]
+    );
+  }
 
   /* -------------------------------------------------------------
      Render
@@ -257,6 +285,14 @@ export default function GoalDebtMainCard({
             <Text style={styles.secondaryButtonText}>Editar</Text>
           </TouchableOpacity>
         </View>
+
+        {/* EXCLUIR DÍVIDA */}
+        <TouchableOpacity
+          style={[styles.secondaryButton, { marginTop: 10 }]}
+          onPress={handleDelete}
+        >
+          <Text style={styles.secondaryButtonText}>Excluir dívida</Text>
+        </TouchableOpacity>
 
         {/* QUITAR DÍVIDA */}
         {canSettle && (

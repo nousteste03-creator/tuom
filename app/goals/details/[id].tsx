@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
-import { useGoals } from "@/hooks/useGoals";
+import { useGoals } from "@/context/GoalsContext";
 import { BlurView } from "expo-blur";
 
 const brandFont = Platform.select({

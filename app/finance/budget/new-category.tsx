@@ -13,7 +13,7 @@ import { BlurView } from "expo-blur";
 
 import Screen from "@/components/layout/Screen";
 import Icon from "@/components/ui/Icon";
-import { useBudget } from "@/hooks/useBudget";
+import { useBudget } from "@/context/BudgetContext";
 
 const brandFont = Platform.select({
   ios: "SF Pro Display",

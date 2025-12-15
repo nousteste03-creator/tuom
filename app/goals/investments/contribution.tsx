@@ -18,7 +18,7 @@ import { BlurView } from "expo-blur";
 
 import Screen from "@/components/layout/Screen";
 import Icon from "@/components/ui/Icon";
-import { useGoals } from "@/hooks/useGoals";
+import { useGoals } from "@/context/GoalsContext";
 import { supabase } from "@/lib/supabase";
 
 const { width } = Dimensions.get("window");

@@ -6,6 +6,8 @@ import * as SystemUI from "expo-system-ui";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import { UserPlanProvider } from "@/context/UserPlanContext";
+import { BudgetProvider } from "@/context/BudgetContext";
+import { GoalsProvider } from "@/context/GoalsContext";
 
 export default function RootLayout() {
   useEffect(() => {
@@ -14,16 +16,23 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
+      {/* 🔐 Plano do usuário (base de tudo) */}
       <UserPlanProvider>
-        <StatusBar style="light" />
+        {/* 💰 Orçamento */}
+        <BudgetProvider>
+          {/* 🎯 Metas / Dívidas / Investimentos */}
+          <GoalsProvider>
+            <StatusBar style="light" />
 
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            animation: "fade",
-            contentStyle: { backgroundColor: "#0B0B0C" },
-          }}
-        />
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                animation: "fade",
+                contentStyle: { backgroundColor: "#0B0B0C" },
+              }}
+            />
+          </GoalsProvider>
+        </BudgetProvider>
       </UserPlanProvider>
     </GestureHandlerRootView>
   );

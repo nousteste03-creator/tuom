@@ -34,7 +34,7 @@ import GoalInstallmentsTimeline from "@/components/app/goals/GoalInstallmentsTim
 import GoalsInsightsCard from "@/components/app/goals/GoalsInsightsCard";
 
 // HOOKS
-import { useGoals } from "@/hooks/useGoals";
+import { useGoals } from "@/context/GoalsContext";
 import { useGoalsInsights } from "@/hooks/useGoalsInsights";
 import { useIncomeSources } from "@/hooks/useIncomeSources";
 import { useUserPlan } from "@/hooks/useUserPlan";

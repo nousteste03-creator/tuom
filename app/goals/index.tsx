@@ -24,7 +24,7 @@ import GoalsEmptyState from "@/components/app/goals/GoalsEmptyState";
 
 import ModalPremiumPaywall from "@/components/app/common/ModalPremiumPaywall";
 
-import { useGoals } from "@/hooks/useGoals";
+import { useGoals } from "@/context/GoalsContext";
 import { useIncomeSources } from "@/hooks/useIncomeSources";
 import { useUserPlan } from "@/context/UserPlanContext";
 

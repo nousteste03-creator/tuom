@@ -13,7 +13,7 @@ import { BlurView } from "expo-blur";
 
 import Screen from "@/components/layout/Screen";
 import Icon from "@/components/ui/Icon";
-import { useBudget } from "@/hooks/useBudget";
+import { useBudget } from "@/context/BudgetContext";
 
 const brandFont = Platform.select({
   ios: "SF Pro Display",
@@ -30,18 +30,39 @@ export default function NewExpenseScreen() {
   const [date, setDate] = useState(
     new Date().toISOString().slice(0, 10) // YYYY-MM-DD
   );
+  const [saving, setSaving] = useState(false);
 
   async function handleSave() {
+    if (saving) return;
     if (!categoryId || !description.trim() || !amount.trim()) return;
 
-    await addExpense({
-      category_id: categoryId,
-      description: description.trim(),
-      amount: Number(amount.replace(",", ".")),
-      date,
-    });
+    setSaving(true);
 
-    router.back();
+    try {
+      const payload = {
+        category_id: categoryId,
+        description: description.trim(),
+        amount: Number(amount.replace(",", ".")),
+        date,
+      };
+
+      console.log("🧾 NewExpense.handleSave payload:", payload);
+
+      const created = await addExpense(payload);
+
+      if (!created) {
+        console.log("❌ NewExpense: gasto NÃO foi criado");
+        setSaving(false);
+        return;
+      }
+
+      console.log("✅ NewExpense: gasto criado com sucesso", created);
+
+      router.back();
+    } catch (err) {
+      console.log("🔥 ERROR/NewExpense.handleSave:", err);
+      setSaving(false);
+    }
   }
 
   return (
@@ -92,12 +113,14 @@ export default function NewExpenseScreen() {
 
             <TouchableOpacity
               onPress={() => router.back()}
+              disabled={saving}
               style={{
                 padding: 8,
                 backgroundColor: "rgba(255,255,255,0.06)",
                 borderRadius: 12,
                 borderWidth: 1,
                 borderColor: "rgba(255,255,255,0.10)",
+                opacity: saving ? 0.4 : 1,
               }}
             >
               <Icon name="close" color="#FFF" size={18} />
@@ -138,6 +161,7 @@ export default function NewExpenseScreen() {
                       key={cat.id}
                       activeOpacity={0.85}
                       onPress={() => setCategoryId(cat.id)}
+                      disabled={saving}
                       style={{
                         padding: 14,
                         borderRadius: 12,
@@ -150,6 +174,7 @@ export default function NewExpenseScreen() {
                           categoryId === cat.id
                             ? "rgba(255,255,255,0.12)"
                             : "rgba(255,255,255,0.04)",
+                        opacity: saving ? 0.6 : 1,
                       }}
                     >
                       <Text
@@ -184,6 +209,7 @@ export default function NewExpenseScreen() {
                 placeholderTextColor="#6B7280"
                 value={description}
                 onChangeText={setDescription}
+                editable={!saving}
                 style={{
                   backgroundColor: "rgba(255,255,255,0.06)",
                   borderWidth: 1,
@@ -215,6 +241,7 @@ export default function NewExpenseScreen() {
                 value={amount}
                 onChangeText={setAmount}
                 keyboardType="numeric"
+                editable={!saving}
                 style={{
                   backgroundColor: "rgba(255,255,255,0.06)",
                   borderWidth: 1,
@@ -245,6 +272,7 @@ export default function NewExpenseScreen() {
                 onChangeText={setDate}
                 placeholder="YYYY-MM-DD"
                 placeholderTextColor="#6B7280"
+                editable={!saving}
                 style={{
                   backgroundColor: "rgba(255,255,255,0.06)",
                   borderWidth: 1,
@@ -262,13 +290,15 @@ export default function NewExpenseScreen() {
           <TouchableOpacity
             activeOpacity={0.9}
             onPress={handleSave}
-            disabled={!categoryId || !description.trim() || !amount.trim()}
+            disabled={
+              saving || !categoryId || !description.trim() || !amount.trim()
+            }
             style={{
               marginTop: 10,
               padding: 16,
               borderRadius: 12,
               backgroundColor:
-                categoryId && description.trim() && amount.trim()
+                !saving && categoryId && description.trim() && amount.trim()
                   ? "#FFF"
                   : "rgba(255,255,255,0.25)",
               alignItems: "center",
@@ -277,14 +307,14 @@ export default function NewExpenseScreen() {
             <Text
               style={{
                 color:
-                  categoryId && description.trim() && amount.trim()
+                  !saving && categoryId && description.trim() && amount.trim()
                     ? "#000"
                     : "rgba(0,0,0,0.4)",
                 fontSize: 15,
                 fontWeight: "700",
               }}
             >
-              Registrar gasto
+              {saving ? "Salvando..." : "Registrar gasto"}
             </Text>
           </TouchableOpacity>
         </ScrollView>

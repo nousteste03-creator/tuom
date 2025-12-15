@@ -14,7 +14,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { BlurView } from "expo-blur";
 
 import Screen from "@/components/layout/Screen";
-import { useGoals } from "@/hooks/useGoals";
+import { useGoals } from "@/context/GoalsContext";
 
 const brandFont = Platform.select({
   ios: "SF Pro Display",

@@ -1,11 +1,17 @@
 // hooks/useFinance.ts
 import { useMemo, useState } from "react";
+
 import { useSubscriptions } from "./useSubscriptions";
 import { useBudget } from "./useBudget";
-import { useGoals } from "./useGoals";
+import { useIncomeSources } from "@/hooks/useIncomeSources";
+import { useGoals } from "@/context/GoalsContext";
 import { useOpenFinance } from "./useOpenFinance";
 
 export function useFinance() {
+  /* =========================================================
+     FONTES
+  ========================================================= */
+
   // Assinaturas
   const { monthlyTotal: subsTotal, reload: reloadSubs } = useSubscriptions();
 
@@ -16,55 +22,104 @@ export function useFinance() {
     reload: reloadBudget,
   } = useBudget();
 
-  // Metas (agora incluímos projecao_mensal)
-  const { goals, getGoals: reloadGoals } = useGoals();
+  // Receitas
+  const {
+    incomeSources,
+    totalMonthlyIncome,
+    reload: reloadIncome,
+  } = useIncomeSources();
+
+  // Metas / Dívidas
+  const {
+    debts,
+    monthlyDebtOutflow,
+    reload: reloadGoals,
+  } = useGoals();
 
   // Open Finance
   const { connected } = useOpenFinance();
 
   const [loading, setLoading] = useState(false);
 
-  // --------------------------------------------------------
-  // TOTAL DE DESPESAS (assinaturas + orçamento)
-  // --------------------------------------------------------
-  const totalExpenses = subsTotal + budgetTotal;
+  /* =========================================================
+     CLASSIFICAÇÃO DE RECEITAS
+  ========================================================= */
 
-  // --------------------------------------------------------
-  // PROJEÇÃO DAS METAS (PRO)
-  // Somatório da coluna projecao_mensal das metas ativas
-  // --------------------------------------------------------
-  const totalGoalsMonthlyProjection = useMemo(() => {
-    if (!goals || goals.length === 0) return 0;
+  const variableIncome = useMemo(() => {
+    return incomeSources.filter(
+      (src) => src.active && src.frequency === "once"
+    );
+  }, [incomeSources]);
 
-    return goals
-      .filter(
-        (g) =>
-          g.status === "active" &&
-          (g.tipo === "meta" || g.tipo === "investimento") &&
-          g.projecao_mensal !== null &&
-          g.projecao_mensal !== undefined
-      )
-      .reduce((acc, g) => acc + Number(g.projecao_mensal), 0);
-  }, [goals]);
+  const variableIncomeTotal = useMemo(() => {
+    return variableIncome.reduce((acc, src) => acc + Number(src.amount || 0), 0);
+  }, [variableIncome]);
 
-  // --------------------------------------------------------
-  // RECEITA (placeholder até metas entrarem)
-  // --------------------------------------------------------
-  const totalIncome = 0;
+  /* =========================================================
+     CLASSIFICAÇÃO DE DÍVIDAS
+  ========================================================= */
 
-  // --------------------------------------------------------
-  // SALDO
-  // --------------------------------------------------------
+  // Dívidas variáveis = parcelas únicas (sem recorrência futura)
+  const variableDebtTotal = useMemo(() => {
+    let total = 0;
+
+    for (const debt of debts) {
+      const unpaid = debt.installments.filter(
+        (i) => i.status !== "paid"
+      );
+
+      if (unpaid.length === 1) {
+        total += Number(unpaid[0].amount || 0);
+      }
+    }
+
+    return total;
+  }, [debts]);
+
+  /* =========================================================
+     SAÍDAS MENSAIS (RECORRENTES)
+  ========================================================= */
+
+  const monthlyExpenses =
+    subsTotal + budgetTotal + monthlyDebtOutflow;
+
+  /* =========================================================
+     ENTRADAS MENSAIS (RECORRENTES)
+  ========================================================= */
+
+  const monthlyIncome = totalMonthlyIncome;
+
+  /* =========================================================
+     TOTAIS DO MÊS (PAINEL)
+  ========================================================= */
+
+  const totalIncome = monthlyIncome + variableIncomeTotal;
+  const totalExpenses = monthlyExpenses + variableDebtTotal;
+
+  /* =========================================================
+     SALDO
+  ========================================================= */
+
   const balance = totalIncome - totalExpenses;
 
-  // --------------------------------------------------------
-  // PROJEÇÃO ANUAL
-  // --------------------------------------------------------
-  const annualProjection = totalExpenses * 12;
+  /* =========================================================
+     PROJEÇÕES ANUAIS (12 MESES)
+  ========================================================= */
 
-  // --------------------------------------------------------
-  // INSIGHT
-  // --------------------------------------------------------
+  // ENTRADAS
+  const annualIncomeFixed = monthlyIncome * 12;
+  const annualIncomeWithVariable =
+    annualIncomeFixed + variableIncomeTotal;
+
+  // SAÍDAS
+  const annualExpensesFixed = monthlyExpenses * 12;
+  const annualExpensesWithVariable =
+    annualExpensesFixed + variableDebtTotal;
+
+  /* =========================================================
+     INSIGHT
+  ========================================================= */
+
   const insight =
     balance < 0
       ? "Seu mês tende ao negativo. Vamos ajustar juntos."
@@ -72,39 +127,61 @@ export function useFinance() {
       ? "Positivo, mas apertado. Pequenos ajustes já aliviam."
       : "Mês saudável com folga. Ótimo para reforçar metas.";
 
-  // --------------------------------------------------------
-  // RELOAD GLOBAL
-  // --------------------------------------------------------
+  /* =========================================================
+     RELOAD GLOBAL
+  ========================================================= */
+
   async function reload() {
     setLoading(true);
-    await Promise.all([reloadSubs?.(), reloadBudget?.(), reloadGoals?.()]);
+    await Promise.all([
+      reloadSubs?.(),
+      reloadBudget?.(),
+      reloadIncome?.(),
+      reloadGoals?.(),
+    ]);
     setLoading(false);
   }
 
+  /* =========================================================
+     RETURN — CONTRATO FINANCE
+  ========================================================= */
+
   return {
-    // Saídas
+    /* ---------- ENTRADAS ---------- */
+    totalIncome,
+    monthlyIncome,
+    variableIncomeTotal,
+
+    /* ---------- SAÍDAS ---------- */
     totalExpenses,
+    monthlyExpenses,
+    variableDebtTotal,
     subsTotal,
     budgetTotal,
 
-    // Entradas
-    totalIncome,
+    /* ---------- PROJEÇÕES ---------- */
+    projections: {
+      income: {
+        fixed: annualIncomeFixed,
+        withVariable: annualIncomeWithVariable,
+      },
+      expenses: {
+        fixed: annualExpensesFixed,
+        withVariable: annualExpensesWithVariable,
+      },
+    },
 
-    // Painel
+    /* ---------- PAINEL ---------- */
     balance,
-    annualProjection,
     insight,
 
-    // Projeção de metas (PRO)
-    totalGoalsMonthlyProjection,
-
-    // Extras
+    /* ---------- EXTRAS ---------- */
     totalsByCategory,
-    goals,
+    debts,
     openFinanceEnabled: connected,
     loading,
 
-    // API
+    /* ---------- API ---------- */
     reload,
   };
 }
