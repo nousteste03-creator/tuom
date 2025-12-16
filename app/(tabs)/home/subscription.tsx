@@ -1,6 +1,6 @@
 // app/(tabs)/home/subscription.tsx
 
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ScrollView,
   View,
@@ -14,6 +14,12 @@ import { useRouter } from "expo-router";
 import { BlurView } from "expo-blur";
 import { Video } from "expo-av";
 import { LinearGradient } from "expo-linear-gradient";
+
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+} from "react-native-reanimated";
 
 import Screen from "@/components/layout/Screen";
 import Icon from "@/components/ui/Icon";
@@ -29,31 +35,191 @@ const brandFont = Platform.select({
   default: "System",
 });
 
+type PlanMode = "basic" | "pro";
+
 /* -------------------------------------------------------
-   DATA
+   COPY (dinâmico por modo)
 ------------------------------------------------------- */
-const TIMELINE: Array<[string, string]> = [
-  ["Hoje", "Você passa a enxergar tudo."],
-  ["Em poucos dias", "Identifica padrões reais."],
-  ["Sempre", "Decide com mais consciência."],
-];
-
-const FEATURES: Array<[string, string]> = [
-  ["Clareza", "Todos os seus números organizados."],
-  ["PILA", "Interpreta seus dados, sem julgamento."],
-  ["Contexto", "Notícias e insights que importam."],
-];
+const COPY = {
+  basic: {
+    title: "Você vê os números.",
+    body:
+      "Organiza gastos, acompanha valores e mantém controle essencial.\n\nAs decisões ainda dependem só de você.",
+    bullets: [] as string[],
+    cta: "Continuar no modo básico",
+    hint: "Você pode ativar o PRO quando quiser.",
+  },
+  pro: {
+    title: "Os números ganham contexto.",
+    body:
+      "A NÖUS interpreta seus dados, conecta padrões e reduz ruído para você decidir com clareza.",
+    bullets: [
+      "Interpretação com PILA",
+      "Contexto de mercado e notícias",
+      "Insights contínuos",
+    ],
+    cta: "Ativar NÖUS PRO",
+    hint: "Cancele quando quiser.",
+  },
+} as const;
 
 /* -------------------------------------------------------
-   COMPONENT
+   COMPONENTES
+------------------------------------------------------- */
+function PlanCardBasic({
+  active,
+  onPress,
+}: {
+  active: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity activeOpacity={0.9} onPress={onPress} style={{ flex: 1 }}>
+      <View
+        style={[
+          styles.planCardBase,
+          styles.planCardBasic,
+          active ? styles.planCardActive : styles.planCardInactive,
+        ]}
+      >
+        <View style={styles.planTopRow}>
+          <Text style={styles.planTitle}>Básico</Text>
+          <View
+            style={[
+              styles.radio,
+              active ? styles.radioOn : styles.radioOff,
+            ]}
+          >
+            {active ? <View style={styles.radioDot} /> : null}
+          </View>
+        </View>
+
+        <Text style={styles.planDesc}>Organização essencial</Text>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+function PlanCardPro({
+  active,
+  onPress,
+}: {
+  active: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity activeOpacity={0.9} onPress={onPress} style={{ flex: 1 }}>
+      <BlurView
+        intensity={active ? 26 : 18}
+        tint="dark"
+        style={[
+          styles.planCardBase,
+          styles.planCardPro,
+          active ? styles.planCardProActive : styles.planCardInactive,
+        ]}
+      >
+        <View style={styles.planProGlow} />
+
+        <View style={styles.planTopRow}>
+          <Text style={styles.planTitle}>NÖUS PRO</Text>
+          <View
+            style={[
+              styles.radio,
+              active ? styles.radioOn : styles.radioOff,
+            ]}
+          >
+            {active ? <View style={styles.radioDot} /> : null}
+          </View>
+        </View>
+
+        <Text style={styles.planDesc}>Clareza, contexto e decisão</Text>
+      </BlurView>
+    </TouchableOpacity>
+  );
+}
+
+function DynamicPlanBlock({
+  mode,
+  isPro,
+}: {
+  mode: PlanMode;
+  isPro: boolean;
+}) {
+  const opacity = useSharedValue(1);
+  const translateY = useSharedValue(0);
+
+  useEffect(() => {
+    // “Troca de modo” com fade curto + leve deslocamento (silencioso)
+    opacity.value = withTiming(0, { duration: 140 });
+    translateY.value = withTiming(6, { duration: 140 });
+
+    const t = setTimeout(() => {
+      opacity.value = withTiming(1, { duration: 260 });
+      translateY.value = withTiming(0, { duration: 260 });
+    }, 150);
+
+    return () => clearTimeout(t);
+  }, [mode]);
+
+  const aStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [{ translateY: translateY.value }],
+  }));
+
+  const content = COPY[mode];
+
+  return (
+    <Animated.View style={[styles.dynamicWrap, aStyle]}>
+      <Text style={styles.dynamicTitle}>{content.title}</Text>
+
+      <Text style={styles.dynamicBody}>{content.body}</Text>
+
+      {mode === "pro" && content.bullets.length > 0 ? (
+        <View style={styles.bullets}>
+          {content.bullets.map((b, i) => (
+            <View key={`${b}-${i}`} style={styles.bulletRow}>
+              <View style={styles.bulletDot} />
+              <Text style={styles.bulletText}>{b}</Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
+
+      {/* Se já é PRO, reforça “estado” sem ficar vendedor */}
+      {isPro ? (
+        <View style={styles.proBadgeInline}>
+          <Icon name="check" size={16} color="rgba(255,255,255,0.85)" />
+          <Text style={styles.proBadgeText}>Assinatura ativa</Text>
+        </View>
+      ) : null}
+    </Animated.View>
+  );
+}
+
+/* -------------------------------------------------------
+   SCREEN
 ------------------------------------------------------- */
 export default function SubscriptionScreen() {
   const router = useRouter();
   const { isPro } = useUserPlan();
 
+  // Default: destacar PRO (padrão premium, sem agressividade).
+  const [mode, setMode] = useState<PlanMode>("pro");
+
+  const content = useMemo(() => COPY[mode], [mode]);
+
   function handleCTA() {
     if (isPro) {
       router.push("/settings/manage-subscription");
+      return;
+    }
+
+    if (mode === "basic") {
+      // Aqui você decide o fluxo:
+      // - ou volta para home,
+      // - ou fecha modal,
+      // - ou apenas mantém como “preview”
+      router.back();
       return;
     }
 
@@ -78,10 +244,8 @@ export default function SubscriptionScreen() {
             isMuted
           />
 
-          {/* Overlay (melhora leitura e evita “quebra” visual) */}
           <View style={styles.heroDim} />
 
-          {/* Gradiente: segura o texto e integra com o fundo preto */}
           <LinearGradient
             colors={[
               "rgba(0,0,0,0.00)",
@@ -93,16 +257,17 @@ export default function SubscriptionScreen() {
             style={StyleSheet.absoluteFillObject}
           />
 
-          {/* Header no topo (fixo, não depende do vídeo) */}
           <View style={styles.heroHeader}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={styles.closeBtn}
+            >
               <Icon name="close" size={20} color="#fff" />
             </TouchableOpacity>
 
             <Text style={styles.heroBrand}>NÖUS PRO</Text>
           </View>
 
-          {/* Hero Text (sempre dentro da área segura do gradiente) */}
           <View style={styles.heroTextWrap}>
             <Text style={styles.heroTitle}>
               Controle financeiro.
@@ -117,35 +282,21 @@ export default function SubscriptionScreen() {
 
         {/* ================= CONTENT ================= */}
         <View style={styles.content}>
-          {/* Timeline */}
-          <View style={styles.timelineBlock}>
-            {TIMELINE.map(([title, desc], i) => (
-              <View key={`${title}-${i}`} style={styles.timelineRow}>
-                <View style={styles.timelineDot} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.timelineTitle}>{title}</Text>
-                  <Text style={styles.timelineDesc}>{desc}</Text>
-                </View>
-              </View>
-            ))}
+          {/* Seletor de modo */}
+          <View style={styles.planRow}>
+            <PlanCardBasic
+              active={mode === "basic"}
+              onPress={() => setMode("basic")}
+            />
+
+            <PlanCardPro
+              active={mode === "pro"}
+              onPress={() => setMode("pro")}
+            />
           </View>
 
-          {/* Features (Apple Glass) */}
-          <View style={{ gap: 14 }}>
-            {FEATURES.map(([title, desc], i) => (
-              <BlurView
-                key={`${title}-${i}`}
-                intensity={22}
-                tint="dark"
-                style={styles.glass}
-              >
-                <View style={styles.glassInner}>
-                  <Text style={styles.featureTitle}>{title}</Text>
-                  <Text style={styles.featureDesc}>{desc}</Text>
-                </View>
-              </BlurView>
-            ))}
-          </View>
+          {/* Conteúdo dinâmico */}
+          <DynamicPlanBlock mode={mode} isPro={isPro} />
 
           {/* CTA */}
           <View style={styles.ctaBlock}>
@@ -154,20 +305,30 @@ export default function SubscriptionScreen() {
               onPress={handleCTA}
               style={[
                 styles.ctaBtn,
-                { backgroundColor: isPro ? "rgba(255,255,255,0.10)" : "#FFFFFF" },
+                isPro
+                  ? styles.ctaBtnProActive
+                  : mode === "pro"
+                  ? styles.ctaBtnPrimary
+                  : styles.ctaBtnGhost,
               ]}
             >
               <Text
                 style={[
                   styles.ctaText,
-                  { color: isPro ? "rgba(255,255,255,0.70)" : "#111827" },
+                  isPro
+                    ? styles.ctaTextProActive
+                    : mode === "pro"
+                    ? styles.ctaTextPrimary
+                    : styles.ctaTextGhost,
                 ]}
               >
-                {isPro ? "Gerenciar assinatura" : "Começar agora"}
+                {isPro ? "Gerenciar assinatura" : content.cta}
               </Text>
             </TouchableOpacity>
 
-            <Text style={styles.ctaHint}>Cancele quando quiser.</Text>
+            <Text style={styles.ctaHint}>
+              {isPro ? "Você pode ajustar sua assinatura a qualquer momento." : content.hint}
+            </Text>
           </View>
         </View>
       </ScrollView>
@@ -210,9 +371,9 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(0,0,0,0.28)",
+    backgroundColor: "rgba(103, 123, 129, 0.28)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
+    borderColor: "rgba(69, 115, 121, 0.96)",
     overflow: "hidden",
   },
 
@@ -233,7 +394,7 @@ const styles = StyleSheet.create({
   },
 
   heroTitle: {
-    color: "#fff",
+    color: "#fbfbfbff",
     fontSize: 34,
     fontWeight: "900",
     lineHeight: 38,
@@ -249,73 +410,180 @@ const styles = StyleSheet.create({
 
   content: {
     paddingHorizontal: 20,
-    marginTop: 22,
-    gap: 26,
+    marginTop: 18,
+    gap: 16,
   },
 
-  timelineBlock: {
-    gap: 18,
-  },
-
-  timelineRow: {
+  /* ------ Plan selector ------ */
+  planRow: {
     flexDirection: "row",
-    gap: 14,
-    alignItems: "flex-start",
+    gap: 12,
   },
 
-  timelineDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: "#fff",
-    marginTop: 6,
-    opacity: 0.95,
-  },
-
-  timelineTitle: {
-    color: "#fff",
-    fontWeight: "700",
-    fontSize: 15,
-    fontFamily: brandFont,
-  },
-
-  timelineDesc: {
-    color: "rgba(255,255,255,0.55)",
-    fontSize: 14,
-    marginTop: 2,
-    fontFamily: brandFont,
-  },
-
-  glass: {
+  planCardBase: {
     borderRadius: 22,
+    padding: 16,
+    minHeight: 86,
     overflow: "hidden",
+    borderWidth: 1,
   },
 
-  glassInner: {
-    padding: 18,
-    backgroundColor: "rgba(255,255,255,0.06)",
-    borderWidth: 1,
+  planCardBasic: {
+    backgroundColor: "rgba(10,10,10,0.92)",
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+
+  planCardPro: {
     borderColor: "rgba(255,255,255,0.12)",
   },
 
-  featureTitle: {
+  planCardActive: {
+    borderColor: "rgba(255,255,255,0.22)",
+  },
+
+  planCardProActive: {
+    borderColor: "rgba(255,255,255,0.26)",
+  },
+
+  planCardInactive: {
+    opacity: 0.68,
+  },
+
+  planTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+
+  planTitle: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "800",
+    fontFamily: brandFont,
+    letterSpacing: 0.2,
+  },
+
+  planDesc: {
+    color: "rgba(255,255,255,0.62)",
+    fontSize: 13,
+    marginTop: 6,
+    fontFamily: brandFont,
+    lineHeight: 18,
+  },
+
+  planProGlow: {
+    position: "absolute",
+    top: -40,
+    right: -60,
+    width: 160,
+    height: 160,
+    borderRadius: 999,
+    backgroundColor: "rgba(58, 159, 199, 0.12)",
+  },
+
+  radio: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  radioOn: {
+    borderColor: "rgba(255,255,255,0.85)",
+    backgroundColor: "rgba(255,255,255,0.08)",
+  },
+
+  radioOff: {
+    borderColor: "rgba(255,255,255,0.22)",
+    backgroundColor: "rgba(0,0,0,0.18)",
+  },
+
+  radioDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#fff",
+    opacity: 0.92,
+  },
+
+  /* ------ Dynamic block ------ */
+  dynamicWrap: {
+    borderRadius: 22,
+    padding: 18,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.10)",
+  },
+
+  dynamicTitle: {
     color: "#fff",
     fontSize: 16,
-    fontWeight: "700",
+    fontWeight: "800",
     fontFamily: brandFont,
+    letterSpacing: 0.15,
   },
 
-  featureDesc: {
+  dynamicBody: {
     color: "rgba(255,255,255,0.62)",
     fontSize: 14,
-    marginTop: 4,
+    marginTop: 8,
     fontFamily: brandFont,
-    lineHeight: 20,
+    lineHeight: 21,
   },
 
+  bullets: {
+    marginTop: 12,
+    gap: 10,
+  },
+
+  bulletRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+
+  bulletDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "rgba(255,255,255,0.85)",
+  },
+
+  bulletText: {
+    color: "rgba(255,255,255,0.72)",
+    fontSize: 13,
+    fontFamily: brandFont,
+    lineHeight: 18,
+  },
+
+  proBadgeInline: {
+    marginTop: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+    alignSelf: "flex-start",
+  },
+
+  proBadgeText: {
+    color: "rgba(255,255,255,0.80)",
+    fontSize: 13,
+    fontFamily: brandFont,
+    fontWeight: "700",
+  },
+
+  /* ------ CTA ------ */
   ctaBlock: {
     gap: 10,
-    marginTop: 4,
+    marginTop: 2,
   },
 
   ctaBtn: {
@@ -323,13 +591,40 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     alignItems: "center",
     borderWidth: 1,
+  },
+
+  ctaBtnPrimary: {
+    backgroundColor: "#f6f6f6ff",
+    borderColor: "rgba(255,255,255,0.95)",
+  },
+
+  ctaBtnGhost: {
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderColor: "rgba(255,255,255,0.14)",
+  },
+
+  ctaBtnProActive: {
+    backgroundColor: "rgba(255,255,255,0.06)",
     borderColor: "rgba(255,255,255,0.14)",
   },
 
   ctaText: {
     fontSize: 16,
-    fontWeight: "800",
+    fontWeight: "900",
     fontFamily: brandFont,
+    letterSpacing: 0.1,
+  },
+
+  ctaTextPrimary: {
+    color: "#161717ff",
+  },
+
+  ctaTextGhost: {
+    color: "rgba(255,255,255,0.84)",
+  },
+
+  ctaTextProActive: {
+    color: "rgba(255,255,255,0.82)",
   },
 
   ctaHint: {
