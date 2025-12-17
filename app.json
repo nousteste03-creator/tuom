@@ -8,18 +8,18 @@
     "scheme": "nouscore",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-
     "notification": {
       "icon": "./assets/icons/icon.png",
       "color": "#000000"
     },
-
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.nous.core",
-      "usesNonExemptEncryption": false
+      "usesNonExemptEncryption": false,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
-
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#000000",
@@ -31,18 +31,15 @@
       "predictiveBackGestureEnabled": false,
       "softwareRenderingEnabled": false
     },
-
     "web": {
       "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
-
     "splash": {
       "image": "./assets/images/splash-native.png",
       "resizeMode": "contain",
       "backgroundColor": "#000000"
     },
-
     "plugins": [
       "expo-router",
       "expo-notifications",
@@ -59,10 +56,15 @@
         }
       ]
     ],
-
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "1eb7b6e2-0a4a-4155-ab2a-31d3ed55574f"
+      }
     }
   }
 }

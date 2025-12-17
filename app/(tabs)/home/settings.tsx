@@ -14,6 +14,10 @@ import Constants from "expo-constants";
 import Screen from "@/components/layout/Screen";
 import Icon from "@/components/ui/Icon";
 import { useUserSettings } from "@/context/UserSettingsContext";
+import { supabase } from "@/lib/supabase";
+
+// ✅ LGPD — histórico de aceite
+import LegalAcceptanceBlock from "@/components/app/settings/LegalAcceptanceBlock";
 
 const brandFont = Platform.select({
   ios: "SF Pro Display",
@@ -135,6 +139,13 @@ export default function SettingsScreen() {
     Constants.expoConfig?.version
       ? `${Constants.expoConfig.version} BETA`
       : "BETA";
+
+  /* ================= LOGOUT ================= */
+
+  async function handleLogout() {
+    await supabase.auth.signOut();
+    router.replace("/lobby");
+  }
 
   /* ================= LOADING ================= */
 
@@ -313,6 +324,35 @@ export default function SettingsScreen() {
           />
         </SettingsCard>
 
+        {/* ================= PRIVACIDADE & DADOS ================= */}
+        <SettingsCard title="Privacidade & dados">
+          <LegalAcceptanceBlock />
+
+          <Row
+            label="Termos de uso"
+            onPress={() => router.push("/terms")}
+            right={
+              <Icon
+                name="chevron-forward"
+                size={18}
+                color="#9CA3AF"
+              />
+            }
+          />
+
+          <Row
+            label="Política de privacidade"
+            onPress={() => router.push("/privacy")}
+            right={
+              <Icon
+                name="chevron-forward"
+                size={18}
+                color="#9CA3AF"
+              />
+            }
+          />
+        </SettingsCard>
+
         {/* ================= CONTA ================= */}
         <SettingsCard title="Conta & plano">
           <Row
@@ -328,10 +368,11 @@ export default function SettingsScreen() {
           />
 
           <Row
-            label="Encerrar conta"
+            label="Sair da conta"
+            onPress={handleLogout}
             right={
               <Text style={{ color: "#EF4444", fontSize: 14 }}>
-                Ação permanente
+                Logout
               </Text>
             }
           />

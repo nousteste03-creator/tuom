@@ -11,26 +11,30 @@ import { supabase } from "@/lib/supabase";
 import { ensureUserSettings } from "@/lib/bootstrap/ensureUserSettings";
 import { registerDeviceForPush } from "@/lib/notifications/registerDevice";
 
-// 🔐 Contexts existentes
+// ✅ AJUSTE LGPD — sync de aceite versionado
+import { syncLegalAcceptance } from "@/lib/bootstrap/syncLegalAcceptance";
+
+// 🔐 Contexts
 import { UserPlanProvider } from "@/context/UserPlanContext";
 import { UserSettingsProvider } from "@/context/UserSettingsContext";
 import { BudgetProvider } from "@/context/BudgetContext";
 import { GoalsProvider } from "@/context/GoalsContext";
 
-// 🌑 Splash React (gate técnico)
+// 🌑 Splash técnico
 import SplashScreen from "@/components/system/SplashScreen";
 
 export default function RootLayout() {
   const [isAppReady, setIsAppReady] = useState(false);
 
-  // 🎨 Fundo nativo (combina com splash)
+  // 🎨 Fundo nativo (antes de qualquer render)
   useEffect(() => {
     SystemUI.setBackgroundColorAsync("#000000");
   }, []);
 
   /**
    * -----------------------------------------------------
-   * BOOTSTRAP DE SESSÃO — NOTIFICAÇÕES (FASE 2)
+   * BOOTSTRAP DE NOTIFICAÇÕES (FASE 2)
+   * Executa APENAS se houver usuário autenticado
    * -----------------------------------------------------
    */
   useEffect(() => {
@@ -43,17 +47,16 @@ export default function RootLayout() {
       }
 
       const user = data.session?.user;
-
-      if (!user) {
-        // App pode rodar sem login
-        return;
-      }
+      if (!user) return;
 
       try {
         // 1️⃣ garante user_settings (idempotente)
         await ensureUserSettings(user.id);
 
-        // 2️⃣ registra device para push
+        // 2️⃣ garante aceite LGPD versionado (idempotente)
+        await syncLegalAcceptance(user.id);
+
+        // 3️⃣ registra device para push
         await registerDeviceForPush();
       } catch (err) {
         console.error("[bootstrap] notifications error:", err);
@@ -66,28 +69,19 @@ export default function RootLayout() {
   /**
    * -----------------------------------------------------
    * BOOTSTRAP TÉCNICO DO APP
-   *
-   * ⚠️ DEBUG VISUAL DO SPLASH
-   * Mantém o Splash visível por ~1.4s
-   * Apenas para validar animação.
-   *
-   * REMOVER este delay quando:
-   * - fontes estiverem carregando
-   * - preload real existir
+   * (Splash artificial apenas para validação visual)
    * -----------------------------------------------------
    */
   useEffect(() => {
     const prepareApp = async () => {
-      // ⏱️ janela forçada para visualizar o Splash
       await new Promise((resolve) => setTimeout(resolve, 1400));
-
       setIsAppReady(true);
     };
 
     prepareApp();
   }, []);
 
-  // 🌑 SPLASH GATE (antes de qualquer rota existir)
+  // 🌑 GATE ABSOLUTO
   if (!isAppReady) {
     return <SplashScreen />;
   }
