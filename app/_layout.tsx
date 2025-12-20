@@ -11,10 +11,10 @@ import { supabase } from "@/lib/supabase";
 import { ensureUserSettings } from "@/lib/bootstrap/ensureUserSettings";
 import { registerDeviceForPush } from "@/lib/notifications/registerDevice";
 
-// ✅ AJUSTE LGPD — sync de aceite versionado
+// ✅ LGPD — sync de aceite versionado
 import { syncLegalAcceptance } from "@/lib/bootstrap/syncLegalAcceptance";
 
-// 🔐 Contexts
+// 🔐 Contexts globais (mantidos)
 import { UserPlanProvider } from "@/context/UserPlanContext";
 import { UserSettingsProvider } from "@/context/UserSettingsContext";
 import { BudgetProvider } from "@/context/BudgetContext";
@@ -69,7 +69,6 @@ export default function RootLayout() {
   /**
    * -----------------------------------------------------
    * BOOTSTRAP TÉCNICO DO APP
-   * (Splash artificial apenas para validação visual)
    * -----------------------------------------------------
    */
   useEffect(() => {
@@ -97,8 +96,16 @@ export default function RootLayout() {
               <Stack
                 screenOptions={{
                   headerShown: false,
-                  animation: "fade",
-                  contentStyle: { backgroundColor: "#000000" },
+
+                  // ✅ ANIMAÇÃO MADURA (Apple / BTG style)
+                  animation: "slide_from_right",
+                  animationDuration: 220,
+                  gestureEnabled: true,
+
+                  // ✅ FUNDO SEMPRE PRETO (sem transparência)
+                  contentStyle: {
+                    backgroundColor: "#000000",
+                  },
                 }}
               />
             </GoalsProvider>

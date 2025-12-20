@@ -18,7 +18,6 @@ import SubscriptionCard from "@/components/cards/SubscriptionCard";
 import { useSubscriptions } from "@/hooks/useSubscriptions";
 import Icon from "@/components/ui/Icon";
 import { supabase } from "@/lib/supabase";
-import type { Subscription } from "@/types/subscriptions";
 
 const { width } = Dimensions.get("window");
 
@@ -113,15 +112,15 @@ export default function HomeScreen() {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      let nextIndex = currentIndex + 1;
-      if (nextIndex >= PHRASES.length) nextIndex = 0;
+      const next =
+        currentIndex + 1 >= PHRASES.length ? 0 : currentIndex + 1;
 
       carouselRef.current?.scrollToOffset({
-        offset: nextIndex * (width - 40),
+        offset: next * (width - 40),
         animated: true,
       });
 
-      setCurrentIndex(nextIndex);
+      setCurrentIndex(next);
     }, 6000);
 
     return () => clearInterval(interval);
@@ -138,7 +137,7 @@ export default function HomeScreen() {
           contentContainerStyle={{
             paddingHorizontal: 20,
             paddingTop: 20,
-            paddingBottom: 60,
+            paddingBottom: 80,
             gap: 28,
           }}
         >
@@ -148,10 +147,9 @@ export default function HomeScreen() {
               flexDirection: "row",
               alignItems: "center",
               justifyContent: "space-between",
-              paddingTop: 4,
             }}
           >
-            {/* Saudação */}
+            {/* LEFT */}
             <View style={{ flex: 1 }}>
               <Text style={{ color: "#A3A3A3", fontSize: 13 }}>
                 {greeting},
@@ -161,22 +159,14 @@ export default function HomeScreen() {
                   color: "#FFFFFF",
                   fontSize: 22,
                   fontWeight: "700",
-                  marginTop: 2,
                 }}
               >
                 {userName ?? "usuário"}
               </Text>
             </View>
 
-            {/* Logo */}
-            <View
-              style={{
-                flex: 1,
-                alignItems: "center",
-                justifyContent: "center",
-                pointerEvents: "none",
-              }}
-            >
+            {/* CENTER */}
+            <View style={{ flex: 1, alignItems: "center" }}>
               <Text
                 style={{
                   color: "#FFFFFF",
@@ -189,17 +179,19 @@ export default function HomeScreen() {
               </Text>
             </View>
 
-            {/* Ações */}
+            {/* RIGHT */}
             <View
               style={{
                 flex: 1,
                 flexDirection: "row",
                 justifyContent: "flex-end",
                 alignItems: "center",
-                gap: 10,
+                gap: 12,
               }}
             >
+              {/* MENU → TELA DEDICADA */}
               <TouchableOpacity
+                onPress={() => router.push("/menu")}
                 style={{
                   width: 32,
                   height: 32,
@@ -211,7 +203,7 @@ export default function HomeScreen() {
                   alignItems: "center",
                 }}
               >
-                <Icon name="notifications-outline" size={16} color="#fff" />
+                <Icon name="menu" size={16} color="#FFFFFF" />
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -227,7 +219,7 @@ export default function HomeScreen() {
                   alignItems: "center",
                 }}
               >
-                <Icon name="settings-outline" size={16} color="#fff" />
+                <Icon name="settings-outline" size={16} color="#FFFFFF" />
               </TouchableOpacity>
             </View>
           </View>
@@ -236,14 +228,14 @@ export default function HomeScreen() {
           <View style={{ borderRadius: 26, overflow: "hidden" }}>
             <ImageBackground
               source={require("@/assets/images/home-bg.png")}
-              style={{ height: width * 0.47, justifyContent: "center" }}
-              imageStyle={{ opacity: 0.7 }}
+              style={{ height: width * 0.47 }}
+              imageStyle={{ opacity: 0.6 }}
             >
-              <BlurView intensity={30} tint="dark" style={{ flex: 1 }}>
+              <BlurView intensity={28} tint="dark" style={{ flex: 1 }}>
                 <View style={{ flex: 1, padding: 20 }}>
                   <Text
                     style={{
-                      color: "#D1D5DB",
+                      color: "#9CA3AF",
                       fontSize: 13,
                       marginBottom: 10,
                     }}
@@ -253,17 +245,11 @@ export default function HomeScreen() {
 
                   <FlatList
                     data={PHRASES}
-                    keyExtractor={(_, i) => String(i)}
                     horizontal
                     pagingEnabled
                     showsHorizontalScrollIndicator={false}
+                    keyExtractor={(_, i) => String(i)}
                     ref={carouselRef}
-                    onScroll={(e) => {
-                      const index = Math.round(
-                        e.nativeEvent.contentOffset.x / (width - 40)
-                      );
-                      setCurrentIndex(index);
-                    }}
                     renderItem={({ item }) => (
                       <View style={{ width: width - 40 }}>
                         <Text
@@ -285,52 +271,16 @@ export default function HomeScreen() {
 
           {/* ================= TOTAIS ================= */}
           <View style={{ flexDirection: "row", gap: 14 }}>
-            <View
-              style={{
-                flex: 1,
-                backgroundColor: "rgba(255,255,255,0.06)",
-                borderRadius: 18,
-                padding: 16,
-                borderWidth: 1,
-                borderColor: "rgba(255,255,255,0.08)",
-              }}
-            >
-              <Text style={{ color: "#9CA3AF", fontSize: 12 }}>
-                Total mensal
-              </Text>
-              <Text
-                style={{
-                  color: "white",
-                  fontSize: 18,
-                  fontWeight: "700",
-                  marginTop: 6,
-                }}
-              >
+            <View style={cardStyle}>
+              <Text style={labelStyle}>Total mensal</Text>
+              <Text style={valueStyle}>
                 R$ {monthlyTotal.toFixed(2)}/mês
               </Text>
             </View>
 
-            <View
-              style={{
-                flex: 1,
-                backgroundColor: "rgba(255,255,255,0.06)",
-                borderRadius: 18,
-                padding: 16,
-                borderWidth: 1,
-                borderColor: "rgba(255,255,255,0.08)",
-              }}
-            >
-              <Text style={{ color: "#9CA3AF", fontSize: 12 }}>
-                Total anual
-              </Text>
-              <Text
-                style={{
-                  color: "white",
-                  fontSize: 18,
-                  fontWeight: "700",
-                  marginTop: 6,
-                }}
-              >
+            <View style={cardStyle}>
+              <Text style={labelStyle}>Total anual</Text>
+              <Text style={valueStyle}>
                 R$ {annualTotal.toFixed(2)}/ano
               </Text>
             </View>
@@ -356,7 +306,7 @@ export default function HomeScreen() {
                 <Text style={{ color: "white", fontSize: 15 }}>
                   {s.service}
                 </Text>
-                <Text style={{ color: "#D1D5DB", fontSize: 13 }}>
+                <Text style={{ color: "#9CA3AF", fontSize: 13 }}>
                   R$ {s.price.toFixed(2)} • {s.frequency} • vence em{" "}
                   {s.next_billing}
                 </Text>
@@ -382,7 +332,7 @@ export default function HomeScreen() {
                   style={{
                     width: 260,
                     marginRight: 12,
-                    backgroundColor: "rgba(255,255,255,0.05)",
+                    backgroundColor: "rgba(255,255,255,0.04)",
                     borderWidth: 1,
                     borderColor: "rgba(255,255,255,0.08)",
                     borderRadius: 20,
@@ -421,3 +371,27 @@ export default function HomeScreen() {
     </Screen>
   );
 }
+
+/* -----------------------------
+   Styles auxiliares
+------------------------------ */
+const cardStyle = {
+  flex: 1,
+  backgroundColor: "rgba(255,255,255,0.05)",
+  borderRadius: 18,
+  padding: 16,
+  borderWidth: 1,
+  borderColor: "rgba(255,255,255,0.08)",
+};
+
+const labelStyle = {
+  color: "#9CA3AF",
+  fontSize: 12,
+};
+
+const valueStyle = {
+  color: "white",
+  fontSize: 18,
+  fontWeight: "700" as const,
+  marginTop: 6,
+};

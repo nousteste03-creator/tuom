@@ -21,10 +21,12 @@ export default function TabsLayout() {
 
     check();
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!alive) return;
-      setHasSession(!!session);
-    });
+    const { data: sub } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        if (!alive) return;
+        setHasSession(!!session);
+      }
+    );
 
     return () => {
       alive = false;
@@ -51,16 +53,16 @@ export default function TabsLayout() {
         tabBarInactiveTintColor: colors.textSecondary,
       }}
     >
-      {/* HOME */}
       <Tabs.Screen
         name="home"
         options={{
           title: "Início",
-          tabBarIcon: ({ color }) => <Icon name="home" color={color} size={22} />,
+          tabBarIcon: ({ color }) => (
+            <Icon name="home" color={color} size={22} />
+          ),
         }}
       />
 
-      {/* ASSINATURAS */}
       <Tabs.Screen
         name="subscriptions"
         options={{
@@ -71,7 +73,6 @@ export default function TabsLayout() {
         }}
       />
 
-      {/* METAS */}
       <Tabs.Screen
         name="goals"
         options={{
@@ -82,16 +83,16 @@ export default function TabsLayout() {
         }}
       />
 
-      {/* INSIGHTS */}
       <Tabs.Screen
         name="insights"
         options={{
           title: "Insights",
-          tabBarIcon: ({ color }) => <Icon name="book" color={color} size={22} />,
+          tabBarIcon: ({ color }) => (
+            <Icon name="book" color={color} size={22} />
+          ),
         }}
       />
 
-      {/* FINANÇAS */}
       <Tabs.Screen
         name="finance"
         options={{
@@ -102,7 +103,6 @@ export default function TabsLayout() {
         }}
       />
 
-      {/* PILA */}
       <Tabs.Screen
         name="pila"
         options={{
