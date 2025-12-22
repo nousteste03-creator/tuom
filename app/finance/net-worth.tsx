@@ -144,7 +144,7 @@ export default function NetWorthScreen() {
             </Text>
           </View>
 
-          {/* Sparkline NÖUS Premium */}
+          {/* Sparkline TUÖM Premium */}
           <MiniSparkline value={monthGrowth ?? 0} />
         </BlurView>
 

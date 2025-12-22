@@ -1,5 +1,5 @@
 // /supabase/functions/insights-free/index.ts
-// NÖUS Invest+ — Insights FREE (DeepSeek)
+// TUÖM Invest+ — Insights FREE (DeepSeek)
 // Versão final com segurança, filtros e fallback heurístico.
 
 import { serve } from "https://deno.land/std@0.223.0/http/server.ts";
@@ -26,7 +26,7 @@ async function callDeepSeek(prompt: string): Promise<string> {
         {
           role: "system",
           content: `
-Você é o Analista Técnico Oficial da NÖUS Invest+.
+Você é o Analista Técnico Oficial da TUÖM Invest+.
 
 REGRAS ABSOLUTAS:
 1. Não faça cálculos. Nunca derive números. Use APENAS os valores enviados.
@@ -64,7 +64,7 @@ ESTILO:
 }
 
 /* ==========================================================
-   2) Heurísticas determinísticas NÖUS
+   2) Heurísticas determinísticas TUÖM
 ============================================================ */
 function computeHeuristics(projection: any, market: any) {
   const series = projection?.series || [];

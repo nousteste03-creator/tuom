@@ -113,7 +113,7 @@ export default function InsightsScreen() {
 
                   <View style={styles.todayMetaRow}>
                     <Text style={styles.todaySource}>
-                      {item.source || "NÖUS Insights"}
+                      {item.source || "TUÖM Insights"}
                     </Text>
                     <Text style={styles.todayTime}>
                       {formatTimeAgo(item.publishedAt)}
@@ -205,7 +205,7 @@ export default function InsightsScreen() {
 
                 <View style={styles.timelineMetaRow}>
                   <Text style={styles.timelineSource}>
-                    {ev.source || "NÖUS Insights"}
+                    {ev.source || "TUÖM Insights"}
                   </Text>
                   <Text style={styles.timelineTime}>
                     {formatTimeAgo(ev.publishedAt)}

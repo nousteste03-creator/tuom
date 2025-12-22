@@ -70,7 +70,7 @@ export const BASIC_CARDS: NavigationCard[] = [
   },
   {
     id: "subscription",
-    title: "NÖUS PRO",
+    title: "TUÖM PRO",
     description: "Assinatura e plano",
     route: "/home/subscription",
     type: "basic",

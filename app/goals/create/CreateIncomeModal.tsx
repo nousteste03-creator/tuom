@@ -193,7 +193,7 @@ function IncomeInsightPanel({
   // texto heurístico local (backup)
   const localInsightText = useMemo(() => {
     if (!monthly) {
-      return "Assim que você definir o valor desta renda, a NÖUS passa a projetar o impacto dela no seu mês.";
+      return "Assim que você definir o valor desta renda, a TUÖM passa a projetar o impacto dela no seu mês.";
     }
 
     if (monthly >= 5000) {
@@ -218,7 +218,7 @@ function IncomeInsightPanel({
     }
 
     if (daysUntil < 0) {
-      return `Último pagamento estava previsto para ${prettyDate}. Assim que você atualizar a próxima data, a NÖUS recalcula tudo.`;
+      return `Último pagamento estava previsto para ${prettyDate}. Assim que você atualizar a próxima data, a TUÖM recalcula tudo.`;
     }
 
     if (daysUntil === 0) {
@@ -232,7 +232,7 @@ function IncomeInsightPanel({
     return `Pagamento previsto para ${prettyDate} (em cerca de ${daysUntil} dias).`;
   }, [prettyDate, daysUntil]);
 
-  // texto final mostrado no bloco "Como a NÖUS enxerga esta renda"
+  // texto final mostrado no bloco "Como a TUÖM enxerga esta renda"
   const finalInsightText = useMemo(() => {
     if (loading) {
       return "Gerando uma leitura da PILA com base nos seus dados...";
@@ -253,7 +253,7 @@ function IncomeInsightPanel({
 
       {/* badge */}
       <View style={styles.badge}>
-        <Text style={styles.badgeText}>Projeção automática NÖUS</Text>
+        <Text style={styles.badgeText}>Projeção automática </Text>
       </View>
 
       {/* linha valores mensais / anuais */}
@@ -287,7 +287,7 @@ function IncomeInsightPanel({
 
       {/* insight da PILA (híbrido: IA + heurística) */}
       <Text style={[styles.panelLabel, { marginTop: 16 }]}>
-        Como a NÖUS enxerga esta renda
+        Como a TUÖM enxerga esta renda
       </Text>
       <Text style={styles.panelAIText}>{finalInsightText}</Text>
 
@@ -949,7 +949,7 @@ export default function CreateIncomeModal({ visible, onClose }: Props) {
 }
 
 /* ---------------------------------------------------------
-   STYLES — Imersivo, padrão wizard NÖUS
+   STYLES — Imersivo, padrão wizard TUÖM
 ----------------------------------------------------------*/
 const styles = StyleSheet.create({
   overlay: {

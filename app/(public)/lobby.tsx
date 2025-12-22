@@ -66,7 +66,7 @@ export default function LobbyScreen() {
       <View style={styles.content}>
         {/* HEADER */}
         <View style={styles.header}>
-          <Text style={styles.brand}>NÖUS</Text>
+          <Text style={styles.brand}>TUÖM</Text>
           <Text style={styles.subtitle}>
             Organize sua vida financeira.{"\n"}
             Assinaturas, metas e insights únicos.

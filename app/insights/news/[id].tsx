@@ -47,7 +47,7 @@ export default function NewsDetailCinematic() {
   const title = params.title ?? "";
   const source =
     !params.source || params.source.toLowerCase().includes("desconhecid")
-      ? "NÖUS Insights"
+      ? "TUÖM Insights"
       : params.source;
 
   const img = params.imageUrl;

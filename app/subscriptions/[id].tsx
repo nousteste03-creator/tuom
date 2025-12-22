@@ -166,7 +166,7 @@ export default function SubscriptionDetailScreen() {
 
     Alert.alert(
       "Cancelar assinatura",
-      "Tem certeza que deseja excluir essa assinatura da NÖUS? Isso não cancela no banco/serviço, apenas aqui no app.",
+      "Tem certeza que deseja excluir essa assinatura da TUÖM? Isso não cancela no banco/serviço, apenas aqui no app.",
       [
         { text: "Manter", style: "cancel" },
         {
@@ -281,7 +281,7 @@ export default function SubscriptionDetailScreen() {
                   fontWeight: "600",
                 }}
               >
-                NÖUS Pro
+                TUÖM Pro
               </Text>
             </TouchableOpacity>
           </View>
@@ -564,7 +564,7 @@ export default function SubscriptionDetailScreen() {
                         fontWeight: "600",
                       }}
                     >
-                      Desbloquear no NÖUS Pro
+                      Desbloquear no TUÖM Pro
                     </Text>
                   </TouchableOpacity>
                 )}
@@ -616,7 +616,7 @@ export default function SubscriptionDetailScreen() {
           </Section>
 
           {/* BLOCO FINANCEIRO AVANÇADO (IA) — PRO */}
-          <Section title="Inteligência financeira (NÖUS Pro)">
+          <Section title="Inteligência financeira (TUÖM Pro)">
             <View
               style={{
                 borderRadius: 20,
@@ -644,7 +644,7 @@ export default function SubscriptionDetailScreen() {
                       marginBottom: 8,
                     }}
                   >
-                    A IA da NÖUS ajuda você a:
+                    A IA da TUÖM ajuda você a:
                   </Text>
 
                   <View style={{ gap: 4, marginBottom: 10 }}>
@@ -680,7 +680,7 @@ export default function SubscriptionDetailScreen() {
                           marginBottom: 6,
                         }}
                       >
-                        Disponível apenas no NÖUS Pro.
+                        Disponível apenas no TUÖM Pro.
                       </Text>
                       <TouchableOpacity
                         onPress={() => {

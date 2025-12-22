@@ -110,7 +110,7 @@ export default function GoalsDebtList({ debts, onPress }: GoalsDebtListProps) {
 }
 
 /* ============================================================
-   STYLES — Premium Apple/Glass NÖUS
+   STYLES — Premium Apple/Glass TUÖM
 ============================================================ */
 const styles = StyleSheet.create({
   card: {

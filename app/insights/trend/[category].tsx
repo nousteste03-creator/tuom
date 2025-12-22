@@ -148,7 +148,7 @@ export default function TrendDetailScreen() {
               )}
 
               <Text style={styles.articleSource}>
-                {item.source || "NÖUS Insights"}
+                {item.source || "TUÖM Insights"}
               </Text>
 
               <Text style={styles.articleTitle} numberOfLines={3}>

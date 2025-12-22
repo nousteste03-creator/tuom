@@ -107,7 +107,7 @@ export default function LegalAcceptanceScreen() {
       {/* Texto legal */}
       <View style={styles.card}>
         <Text style={styles.text}>
-          Para usar o NÖUS, é necessário concordar com nossos{" "}
+          Para usar o TUÖM, é necessário concordar com nossos{" "}
           <Text style={styles.link} onPress={() => router.push("/terms")}>
             Termos de Uso
           </Text>{" "}

@@ -1,5 +1,5 @@
 // /supabase/functions/projection-calc/index.ts
-// NÖUS Invest+ — Projeção Real de Investimentos
+// TUÖM Invest+ — Projeção Real de Investimentos
 // CDI + Selic + Retorno do Ativo (opcional via FMP)
 // Nunca usa IA — apenas matemática determinística
 

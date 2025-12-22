@@ -30,7 +30,7 @@ function formatTimeAgo(minutes?: number) {
 export const NewsCard: React.FC<Props> = ({ item, onPress }) => {
   const source =
     !item.source || item.source.toLowerCase().includes("desconhecid")
-      ? "NÖUS Insights"
+      ? "TUÖM Insights"
       : item.source;
 
   return (

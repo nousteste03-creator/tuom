@@ -27,7 +27,7 @@ serve(async (req) => {
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <title>NÖUS Finance</title>
+  <title>TUÖM Finance</title>
 </head>
 
 <body style="margin:0;padding:0;">
@@ -42,7 +42,7 @@ serve(async (req) => {
             <td align="center" style="padding-bottom:40px;">
               <img
                 src="https://kurselrfgbnyhnmrlltq.supabase.co/storage/v1/object/public/public-assets/nous-logo.png"
-                alt="NÖUS Finance"
+                alt="TUÖM Finance"
                 width="72"
                 style="display:block;border:0;outline:none;"
               />
@@ -58,14 +58,14 @@ serve(async (req) => {
               color:#FFFFFF;
               padding-bottom:24px;
             ">
-              Bem-vindo(a) à NÖUS.
+              Bem-vindo(a) à TUÖM.
             </td>
           </tr>
 
           <!-- TEXTO -->
           <tr>
             <td style="font-family:-apple-system, BlinkMacSystemFont, Arial, sans-serif;font-size:15px;line-height:1.6;color:#E5E7EB;">
-              A <strong>NÖUS Finance</strong> é uma plataforma de gestão financeira baseada em método,
+              A <strong>TUÖM Finance</strong> é uma plataforma de gestão financeira baseada em método,
               desenvolvida para organizar orçamentos, compromissos, metas e ativos
               em um único ambiente.
             </td>
@@ -88,7 +88,7 @@ serve(async (req) => {
           <tr>
             <td style="padding-top:40px;font-family:-apple-system, BlinkMacSystemFont, Arial, sans-serif;font-size:14px;color:#D1D5DB;">
               Atenciosamente,<br/>
-              <strong>NÖUS Finance</strong>
+              <strong>TUÖM Finance</strong>
             </td>
           </tr>
 
@@ -100,7 +100,7 @@ serve(async (req) => {
           <!-- SOCIAL -->
           <tr>
             <td style="padding-top:24px;font-family:-apple-system, BlinkMacSystemFont, Arial, sans-serif;font-size:12px;color:#9CA3AF;">
-              Conecte-se com a NÖUS
+              Conecte-se com a TUÖM
             </td>
           </tr>
 
@@ -130,7 +130,7 @@ serve(async (req) => {
           <!-- FOOTER -->
           <tr>
             <td style="padding-top:32px;font-family:-apple-system, BlinkMacSystemFont, Arial, sans-serif;font-size:11px;color:#6B7280;">
-              © ${new Date().getFullYear()} NÖUS Finance. Todos os direitos reservados.
+              © ${new Date().getFullYear()} TUÖM Finance. Todos os direitos reservados.
             </td>
           </tr>
 
@@ -149,9 +149,9 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "NÖUS Finance <onboarding@resend.dev>",
+        from: "TUÖM Finance <onboarding@resend.dev>",
         to: [email],
-        subject: "Bem-vindo à NÖUS Finance",
+        subject: "Bem-vindo à TUÖM Finance",
         html,
       }),
     });

@@ -56,7 +56,7 @@ export default function CreditScoreScreen() {
                 marginTop: 4,
               }}
             >
-              Acompanhe sua saúde financeira — powered by NÖUS.
+              Acompanhe sua saúde financeira — powered by TUÖM.
             </Text>
           </View>
 

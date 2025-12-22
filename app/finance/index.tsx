@@ -218,7 +218,7 @@ export default function FinanceScreen() {
                   lineHeight: 20,
                 }}
               >
-                O hub completo do seu mês — NÖUS PRO.
+                O hub completo do seu mês — TUÖM PRO.
               </Text>
             </View>
 
@@ -260,7 +260,7 @@ export default function FinanceScreen() {
                 marginBottom: 4,
               }}
             >
-              Painel Financeiro NÖUS
+              Painel Financeiro
             </Text>
 
             <TouchableOpacity

@@ -52,13 +52,13 @@ const COPY = {
   pro: {
     title: "Os números ganham contexto.",
     body:
-      "A NÖUS interpreta seus dados, conecta padrões e reduz ruído para você decidir com clareza.",
+      "A TUÖM  interpreta seus dados, conecta padrões e reduz ruído para você decidir com clareza.",
     bullets: [
       "Interpretação com PILA",
       "Contexto de mercado e notícias",
       "Insights contínuos",
     ],
-    cta: "Ativar NÖUS PRO",
+    cta: "Ativar TUÖM PRO",
     hint: "Cancele quando quiser.",
   },
 } as const;
@@ -121,7 +121,7 @@ function PlanCardPro({
         <View style={styles.planProGlow} />
 
         <View style={styles.planTopRow}>
-          <Text style={styles.planTitle}>NÖUS PRO</Text>
+          <Text style={styles.planTitle}>TUÖM PRO</Text>
           <View
             style={[
               styles.radio,
@@ -265,7 +265,7 @@ export default function SubscriptionScreen() {
               <Icon name="close" size={20} color="#fff" />
             </TouchableOpacity>
 
-            <Text style={styles.heroBrand}>NÖUS PRO</Text>
+            <Text style={styles.heroBrand}>TUÖM PRO</Text>
           </View>
 
           <View style={styles.heroTextWrap}>

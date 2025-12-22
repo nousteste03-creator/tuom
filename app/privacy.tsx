@@ -73,7 +73,7 @@ export default function PrivacyScreen() {
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.text}>
-          Esta Política explica como tratamos dados pessoais no NÖUS, em conformidade com a Lei Geral de Proteção de Dados
+          Esta Política explica como tratamos dados pessoais no TUÖM, em conformidade com a Lei Geral de Proteção de Dados
           (Lei nº 13.709/2018 — LGPD).
         </Text>
 
@@ -122,7 +122,7 @@ export default function PrivacyScreen() {
 
         <Text style={styles.section}>8. Crianças e adolescentes</Text>
         <Text style={styles.text}>
-          O NÖUS não é direcionado a menores. Se identificarmos uso indevido, poderemos restringir a conta.
+          O TUÖM não é direcionado a menores. Se identificarmos uso indevido, poderemos restringir a conta.
         </Text>
 
         <Text style={styles.section}>9. Atualizações desta política</Text>

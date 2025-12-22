@@ -1,5 +1,5 @@
 // hooks/useInvestmentProjection.ts
-// NÖUS Invest+ — Hook oficial de Projeção de Investimentos
+// TUÖM Invest+ — Hook oficial de Projeção de Investimentos
 // Conecta diretamente com a Supabase Function `/projection-calc`
 
 import { useState, useCallback } from "react";

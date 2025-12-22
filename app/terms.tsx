@@ -74,37 +74,37 @@ export default function TermsScreen() {
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.text}>
-          Estes Termos regulam o uso do NÖUS. Ao utilizar o aplicativo, você declara que leu e concorda com as regras abaixo.
+          Estes Termos regulam o uso do TUÖM . Ao utilizar o aplicativo, você declara que leu e concorda com as regras abaixo.
           Se você não concordar, não utilize o serviço.
         </Text>
 
         <Text style={styles.section}>1. Escopo do serviço</Text>
         <Text style={styles.text}>
-          O NÖUS é uma plataforma de organização financeira pessoal: controle de gastos, metas, assinaturas, receitas,
+          O TUÖM  é uma plataforma de organização financeira pessoal: controle de gastos, metas, assinaturas, receitas,
           investimentos e conteúdos informativos. Alguns recursos podem exigir assinatura.
         </Text>
 
         <Text style={styles.section}>2. Não é consultoria</Text>
         <Text style={styles.text}>
-          O NÖUS não presta consultoria financeira, jurídica ou contábil. Qualquer conteúdo, indicador, categorização ou insight
+          O TUÖM  não presta consultoria financeira, jurídica ou contábil. Qualquer conteúdo, indicador, categorização ou insight
           é meramente informativo.
         </Text>
 
         <Text style={styles.section}>3. Responsabilidade do usuário</Text>
         <Text style={styles.text}>
-          Você é responsável pela veracidade dos dados inseridos, pelas permissões concedidas e por suas decisões. O NÖUS não
+          Você é responsável pela veracidade dos dados inseridos, pelas permissões concedidas e por suas decisões. O TUÖM  não
           se responsabiliza por prejuízos decorrentes de escolhas baseadas em informações fornecidas pelo usuário.
         </Text>
 
         <Text style={styles.section}>4. Conta e segurança</Text>
         <Text style={styles.text}>
-          Você deve manter suas credenciais seguras e notificar imediatamente em caso de uso indevido. O NÖUS pode bloquear
+          Você deve manter suas credenciais seguras e notificar imediatamente em caso de uso indevido. O TUÖM  pode bloquear
           acessos suspeitos para proteção da conta.
         </Text>
 
         <Text style={styles.section}>5. Conteúdos e propriedade intelectual</Text>
         <Text style={styles.text}>
-          A marca, interface, textos e componentes do NÖUS são protegidos por direitos de propriedade intelectual. É proibida
+          A marca, interface, textos e componentes do TUÖM  são protegidos por direitos de propriedade intelectual. É proibida
           reprodução, engenharia reversa ou distribuição sem autorização.
         </Text>
 

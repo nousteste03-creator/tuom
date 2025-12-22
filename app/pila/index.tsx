@@ -8,7 +8,7 @@ const brandFont = Platform.select({
   default: "System",
 });
 
-// Tipografia da PILA no padrão NÖUS
+// Tipografia da PILA no padrão TUÖM
 const pilaFont = Platform.select({
   ios: "SF Pro Display",
   default: "System",
@@ -52,7 +52,7 @@ export default function PilaHome() {
             letterSpacing: 0.2,
           }}
         >
-          Inteligência financeira da NÖUS
+          Inteligência financeira da TUÖM
         </Text>
       </Animated.View>
 

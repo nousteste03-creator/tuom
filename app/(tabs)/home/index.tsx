@@ -4,7 +4,6 @@ import {
   View,
   Text,
   TouchableOpacity,
-  ImageBackground,
   Dimensions,
   Platform,
   FlatList,
@@ -15,15 +14,14 @@ import { useRouter } from "expo-router";
 import Screen from "@/components/layout/Screen";
 import Section from "@/components/layout/Section";
 import SubscriptionCard from "@/components/cards/SubscriptionCard";
+import HomeFinanceCard from "@/components/home/HomeFinanceCard";
+import HomePlanningCard from "@/components/home/HomePlanningCard";
 import { useSubscriptions } from "@/hooks/useSubscriptions";
 import Icon from "@/components/ui/Icon";
 import { supabase } from "@/lib/supabase";
 
 const { width } = Dimensions.get("window");
 
-/* -------------------------------------------------------
-   FRASES ROTATIVAS — HERO
--------------------------------------------------------- */
 const PHRASES = [
   "Dê o primeiro passo.",
   "Tenha clareza sobre onde seu dinheiro está indo.",
@@ -32,9 +30,6 @@ const PHRASES = [
   "Pequenos ajustes, grandes impactos no seu ano.",
 ];
 
-/* -------------------------------------------------------
-   MICRO INSIGHTS
--------------------------------------------------------- */
 const MICROCARDS = [
   {
     id: "mc-1",
@@ -75,9 +70,6 @@ export default function HomeScreen() {
   const [userName, setUserName] = useState<string | null>(null);
   const [greeting, setGreeting] = useState("Olá");
 
-  /* -----------------------------
-     Saudação
-  ------------------------------ */
   useEffect(() => {
     const hour = new Date().getHours();
     if (hour < 12) setGreeting("Bom dia");
@@ -85,9 +77,6 @@ export default function HomeScreen() {
     else setGreeting("Boa noite");
   }, []);
 
-  /* -----------------------------
-     Nome do usuário
-  ------------------------------ */
   useEffect(() => {
     async function loadUser() {
       const { data } = await supabase.auth.getUser();
@@ -104,9 +93,6 @@ export default function HomeScreen() {
     loadUser();
   }, []);
 
-  /* -----------------------------
-     Carousel
-  ------------------------------ */
   const carouselRef = useRef<FlatList<string>>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
 
@@ -128,253 +114,203 @@ export default function HomeScreen() {
 
   return (
     <Screen>
-      <ImageBackground
-        source={require("@/assets/images/home-bg.png")}
-        style={{ flex: 1 }}
-        resizeMode="cover"
+      <ScrollView
+        contentContainerStyle={{
+          paddingHorizontal: 20,
+          paddingTop: 20,
+          paddingBottom: 80,
+          gap: 28,
+          backgroundColor: "#000000", // fundo preto
+        }}
       >
-        <ScrollView
-          contentContainerStyle={{
-            paddingHorizontal: 20,
-            paddingTop: 20,
-            paddingBottom: 80,
-            gap: 28,
+        {/* ================= HEADER ================= */}
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
           }}
         >
-          {/* ================= HEADER ================= */}
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-            }}
-          >
-            {/* LEFT */}
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: "#A3A3A3", fontSize: 13 }}>
-                {greeting},
-              </Text>
-              <Text
-                style={{
-                  color: "#FFFFFF",
-                  fontSize: 22,
-                  fontWeight: "700",
-                }}
-              >
-                {userName ?? "usuário"}
-              </Text>
-            </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: "#A3A3A3", fontSize: 13 }}>{greeting},</Text>
+            <Text style={{ color: "#FFFFFF", fontSize: 22, fontWeight: "700" }}>
+              {userName ?? "usuário"}
+            </Text>
+          </View>
 
-            {/* CENTER */}
-            <View style={{ flex: 1, alignItems: "center" }}>
-              <Text
-                style={{
-                  color: "#FFFFFF",
-                  fontSize: 20,
-                  letterSpacing: 4,
-                  fontFamily: brandFont,
-                }}
-              >
-                NÖUS
-              </Text>
-            </View>
-
-            {/* RIGHT */}
-            <View
+          <View style={{ flex: 1, alignItems: "center" }}>
+            <Text
               style={{
-                flex: 1,
-                flexDirection: "row",
-                justifyContent: "flex-end",
-                alignItems: "center",
-                gap: 12,
+                color: "#FFFFFF",
+                fontSize: 20,
+                letterSpacing: 4,
+                fontFamily: brandFont,
               }}
             >
-              {/* MENU → TELA DEDICADA */}
-              <TouchableOpacity
-                onPress={() => router.push("/menu")}
-                style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: 16,
-                  borderWidth: 1,
-                  borderColor: "rgba(255,255,255,0.12)",
-                  backgroundColor: "rgba(255,255,255,0.06)",
-                  justifyContent: "center",
-                  alignItems: "center",
-                }}
-              >
-                <Icon name="menu" size={16} color="#FFFFFF" />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={() => router.push("/home/settings")}
-                style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: 16,
-                  borderWidth: 1,
-                  borderColor: "rgba(255,255,255,0.12)",
-                  backgroundColor: "rgba(255,255,255,0.06)",
-                  justifyContent: "center",
-                  alignItems: "center",
-                }}
-              >
-                <Icon name="settings-outline" size={16} color="#FFFFFF" />
-              </TouchableOpacity>
-            </View>
+              TUÖM
+            </Text>
           </View>
 
-          {/* ================= HERO ================= */}
-          <View style={{ borderRadius: 26, overflow: "hidden" }}>
-            <ImageBackground
-              source={require("@/assets/images/home-bg.png")}
-              style={{ height: width * 0.47 }}
-              imageStyle={{ opacity: 0.6 }}
+          <View
+            style={{
+              flex: 1,
+              flexDirection: "row",
+              justifyContent: "flex-end",
+              alignItems: "center",
+              gap: 12,
+            }}
+          >
+            <TouchableOpacity
+              onPress={() => router.push("/menu")}
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 16,
+                borderWidth: 1,
+                borderColor: "rgba(255,255,255,0.12)",
+                backgroundColor: "rgba(255,255,255,0.06)",
+                justifyContent: "center",
+                alignItems: "center",
+              }}
             >
-              <BlurView intensity={28} tint="dark" style={{ flex: 1 }}>
-                <View style={{ flex: 1, padding: 20 }}>
+              <Icon name="menu" size={16} color="#FFFFFF" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => router.push("/home/settings")}
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 16,
+                borderWidth: 1,
+                borderColor: "rgba(255,255,255,0.12)",
+                backgroundColor: "rgba(255,255,255,0.06)",
+                justifyContent: "center",
+                alignItems: "center",
+              }}
+            >
+              <Icon name="settings-outline" size={16} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* ================= HERO ================= */}
+        <View style={{ borderRadius: 26, overflow: "hidden" }}>
+          <BlurView intensity={28} tint="dark" style={{ flex: 1, padding: 20 }}>
+            <Text style={{ color: "#9CA3AF", fontSize: 13, marginBottom: 10 }}>
+              Clareza financeira
+            </Text>
+
+            <FlatList
+              data={PHRASES}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              keyExtractor={(_, i) => String(i)}
+              ref={carouselRef}
+              renderItem={({ item }) => (
+                <View style={{ width: width - 40 }}>
                   <Text
                     style={{
-                      color: "#9CA3AF",
-                      fontSize: 13,
-                      marginBottom: 10,
+                      color: "#FFFFFF",
+                      fontSize: 22,
+                      fontWeight: "700",
                     }}
                   >
-                    Clareza financeira
+                    {item}
                   </Text>
-
-                  <FlatList
-                    data={PHRASES}
-                    horizontal
-                    pagingEnabled
-                    showsHorizontalScrollIndicator={false}
-                    keyExtractor={(_, i) => String(i)}
-                    ref={carouselRef}
-                    renderItem={({ item }) => (
-                      <View style={{ width: width - 40 }}>
-                        <Text
-                          style={{
-                            color: "#FFFFFF",
-                            fontSize: 22,
-                            fontWeight: "700",
-                          }}
-                        >
-                          {item}
-                        </Text>
-                      </View>
-                    )}
-                  />
                 </View>
-              </BlurView>
-            </ImageBackground>
-          </View>
+              )}
+            />
+          </BlurView>
+        </View>
 
-          {/* ================= TOTAIS ================= */}
-          <View style={{ flexDirection: "row", gap: 14 }}>
-            <View style={cardStyle}>
-              <Text style={labelStyle}>Total mensal</Text>
-              <Text style={valueStyle}>
-                R$ {monthlyTotal.toFixed(2)}/mês
+        {/* ================= CARDS FINANCEIRO & PLANNING ================= */}
+        <View style={{ flexDirection: "row", gap: 14 }}>
+          <HomeFinanceCard />
+          <HomePlanningCard />
+        </View>
+
+        {/* ================= PRÓXIMOS VENCIMENTOS ================= */}
+        <Section title="Próximos vencimentos">
+          {upcomingRenewals.length === 0 && !loading && (
+            <Text style={{ color: "#9CA3AF", fontSize: 14 }}>
+              Nenhuma cobrança prevista nos próximos 7 dias.
+            </Text>
+          )}
+
+          {upcomingRenewals.map((s) => (
+            <View
+              key={s.id}
+              style={{
+                paddingVertical: 10,
+                borderBottomWidth: 1,
+                borderBottomColor: "rgba(255,255,255,0.05)",
+              }}
+            >
+              <Text style={{ color: "white", fontSize: 15 }}>{s.service}</Text>
+              <Text style={{ color: "#9CA3AF", fontSize: 13 }}>
+                R$ {s.price.toFixed(2)} • {s.frequency} • vence em {s.next_billing}
               </Text>
             </View>
+          ))}
+        </Section>
 
-            <View style={cardStyle}>
-              <Text style={labelStyle}>Total anual</Text>
-              <Text style={valueStyle}>
-                R$ {annualTotal.toFixed(2)}/ano
-              </Text>
+        {/* ================= ASSINATURAS ================= */}
+        <Section title="Suas assinaturas">
+          {subscriptions.map((s) => (
+            <View key={s.id} style={{ marginBottom: 12 }}>
+              <SubscriptionCard subscription={s} />
             </View>
-          </View>
+          ))}
+        </Section>
 
-          {/* ================= PRÓXIMOS ================= */}
-          <Section title="Próximos vencimentos">
-            {upcomingRenewals.length === 0 && !loading && (
-              <Text style={{ color: "#9CA3AF", fontSize: 14 }}>
-                Nenhuma cobrança prevista nos próximos 7 dias.
-              </Text>
-            )}
-
-            {upcomingRenewals.map((s) => (
+        {/* ================= MICROCARDS ================= */}
+        <Section title="Insights rápidos">
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {MICROCARDS.map((card) => (
               <View
-                key={s.id}
+                key={card.id}
                 style={{
-                  paddingVertical: 10,
-                  borderBottomWidth: 1,
-                  borderBottomColor: "rgba(255,255,255,0.05)",
+                  width: 260,
+                  marginRight: 12,
+                  backgroundColor: "rgba(255,255,255,0.04)",
+                  borderWidth: 1,
+                  borderColor: "rgba(255,255,255,0.08)",
+                  borderRadius: 20,
+                  padding: 16,
                 }}
               >
-                <Text style={{ color: "white", fontSize: 15 }}>
-                  {s.service}
-                </Text>
-                <Text style={{ color: "#9CA3AF", fontSize: 13 }}>
-                  R$ {s.price.toFixed(2)} • {s.frequency} • vence em{" "}
-                  {s.next_billing}
-                </Text>
-              </View>
-            ))}
-          </Section>
-
-          {/* ================= ASSINATURAS ================= */}
-          <Section title="Suas assinaturas">
-            {subscriptions.map((s) => (
-              <View key={s.id} style={{ marginBottom: 12 }}>
-                <SubscriptionCard subscription={s} />
-              </View>
-            ))}
-          </Section>
-
-          {/* ================= MICROCARDS ================= */}
-          <Section title="Insights rápidos">
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {MICROCARDS.map((card) => (
-                <View
-                  key={card.id}
+                <Text
                   style={{
-                    width: 260,
-                    marginRight: 12,
-                    backgroundColor: "rgba(255,255,255,0.04)",
-                    borderWidth: 1,
-                    borderColor: "rgba(255,255,255,0.08)",
-                    borderRadius: 20,
-                    padding: 16,
+                    color: "#6B7280",
+                    fontSize: 12,
+                    textTransform: "uppercase",
+                    marginBottom: 6,
                   }}
                 >
-                  <Text
-                    style={{
-                      color: "#6B7280",
-                      fontSize: 12,
-                      textTransform: "uppercase",
-                      marginBottom: 6,
-                    }}
-                  >
-                    {card.tag}
-                  </Text>
-                  <Text
-                    style={{
-                      color: "white",
-                      fontSize: 16,
-                      fontWeight: "600",
-                      marginBottom: 6,
-                    }}
-                  >
-                    {card.title}
-                  </Text>
-                  <Text style={{ color: "#9CA3AF", fontSize: 13 }}>
-                    {card.body}
-                  </Text>
-                </View>
-              ))}
-            </ScrollView>
-          </Section>
-        </ScrollView>
-      </ImageBackground>
+                  {card.tag}
+                </Text>
+                <Text
+                  style={{
+                    color: "white",
+                    fontSize: 16,
+                    fontWeight: "600",
+                    marginBottom: 6,
+                  }}
+                >
+                  {card.title}
+                </Text>
+                <Text style={{ color: "#9CA3AF", fontSize: 13 }}>{card.body}</Text>
+              </View>
+            ))}
+          </ScrollView>
+        </Section>
+      </ScrollView>
     </Screen>
   );
 }
 
-/* -----------------------------
-   Styles auxiliares
------------------------------- */
 const cardStyle = {
   flex: 1,
   backgroundColor: "rgba(255,255,255,0.05)",

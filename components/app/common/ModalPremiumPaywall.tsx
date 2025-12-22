@@ -116,7 +116,7 @@ export default function ModalPremiumPaywall({
       case "income":
         return "Cadastre múltiplas fontes de renda e tenha fluxo mensal avançado.";
       default:
-        return "Assine o NÖUS PRO e libere recursos avançados.";
+        return "Assine o TUÖM PRO e libere recursos avançados.";
     }
   }, [blockedType]);
 
@@ -148,7 +148,7 @@ export default function ModalPremiumPaywall({
         <Text style={styles.small}>Cancelamento fácil, sem fidelidade.</Text>
 
         <TouchableOpacity style={styles.button} onPress={handleUpgrade}>
-          <Text style={styles.buttonText}>Assinar NÖUS PRO</Text>
+          <Text style={styles.buttonText}>Assinar TUÖM PRO</Text>
         </TouchableOpacity>
 
         <TouchableOpacity onPress={onClose} style={{ marginTop: 16 }}>

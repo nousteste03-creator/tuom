@@ -36,7 +36,7 @@ export default function ToolsBlock({ isPremium }: { isPremium: boolean }) {
             fontWeight: "700",
           }}
         >
-          Ferramentas avançadas NÖUS
+          Ferramentas avançadas TUÖM
         </Text>
 
         <Text

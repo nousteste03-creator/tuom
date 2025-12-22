@@ -37,7 +37,7 @@ export default function InvestmentAIInsightsBlock() {
       }}
     >
       <BlurView intensity={40} tint="dark" style={styles.card}>
-        <Text style={styles.title}>Insights da NÖUS AI</Text>
+        <Text style={styles.title}>Insights da TUÖM AI</Text>
 
         <Text style={styles.subtitle}>
           Em breve, sua análise inteligente será gerada aqui pela OpenAI.

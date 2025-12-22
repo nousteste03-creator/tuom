@@ -1,5 +1,5 @@
 // /supabase/functions/insights-premium/index.ts
-// NÖUS Invest+ — Insight Premium (GPT-4o-mini)
+// TUÖM Invest+ — Insight Premium (GPT-4o-mini)
 // Versão ULTRA-CVM — Bloqueio total de subjetividade. Fallback imediato.
 
 import { serve } from "https://deno.land/std@0.223.0/http/server.ts";
@@ -24,7 +24,7 @@ async function callOpenAI(prompt: string): Promise<string> {
         {
           role: "system",
           content: `
-Você opera no modo jurídico/compliance da NÖUS Invest+.
+Você opera no modo jurídico/compliance da TUÖM Invest+.
 
 REGRAS ABSOLUTAS:
 1. Não fazer cálculos além dos dados fornecidos.

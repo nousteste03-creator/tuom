@@ -74,7 +74,7 @@ export default function MenuScreen() {
             route: "/home/settings",
           },
           {
-            title: isProUser ? "Assinatura" : "NÖUS PRO",
+            title: isProUser ? "Assinatura" : "TUÖM PRO",
             subtitle: isProUser
               ? "Plano e pagamentos"
               : "Desbloqueie recursos avançados",

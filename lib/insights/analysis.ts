@@ -186,7 +186,7 @@ export function analyzeCategoryNews(
   const topHeadlines: HeadlineInfluence[] = sorted.map(({ item, score }) => ({
     id: item.id,
     title: item.title,
-    source: item.source ?? "NÖUS Insights",
+    source: item.source ?? "TUÖM Insights",
     publishedAt: item.publishedAt,
     minutesAgo: item.minutesAgo,
     impactTag: buildImpactTag(score),
