@@ -1,17 +1,15 @@
 // app/components/ui/SubscriptionIcon.tsx
 import { Image, View, Text } from "react-native";
-import { SERVICE_ICONS, getServiceIconKey } from "@/constants/serviceIcons";
+import { getSubscriptionIcon } from "@/constants/subscriptionIcons";
 
 type Props = {
   serviceName: string;
 };
 
 export default function SubscriptionIcon({ serviceName }: Props) {
-  const key = getServiceIconKey(serviceName);
-  const iconSource = SERVICE_ICONS[key];
+  const iconSource = getSubscriptionIcon(serviceName);
 
   if (!iconSource) {
-    // Fallback simples por enquanto: bolinha com inicial
     const initial = serviceName?.[0]?.toUpperCase() ?? "?";
 
     return (
