@@ -23,7 +23,7 @@ export function useFinance() {
   const { monthlyTotal: subsTotal, reload: reloadSubs } =
     useSubscriptions();
 
-  // Orçamento
+  // Orçamento (despesas comuns)
   const {
     totalExpenses: budgetTotal,
     totalsByCategory,
@@ -41,7 +41,8 @@ export function useFinance() {
   const {
     debts,
     monthlyDebtOutflow,
-    monthlyInvestmentOutflow,
+    monthlyGoalsOutflow,
+    monthlyInvestmentsOutflow,
     reload: reloadGoals,
   } = useGoals();
 
@@ -51,8 +52,10 @@ export function useFinance() {
   const [loading, setLoading] = useState(false);
 
   /* =========================================================
-     CLASSIFICAÇÃO DE RECEITAS
+     ENTRADAS
   ========================================================= */
+
+  const fixedIncome = totalMonthlyIncome;
 
   const variableIncome = useMemo(() => {
     return incomeSources.filter(
@@ -67,11 +70,12 @@ export function useFinance() {
     );
   }, [variableIncome]);
 
+  const totalIncome = fixedIncome + variableIncomeTotal;
+
   /* =========================================================
-     CLASSIFICAÇÃO DE DÍVIDAS
+     DÍVIDAS VARIÁVEIS (parcelas únicas)
   ========================================================= */
 
-  // Dívidas variáveis = parcelas únicas (sem recorrência futura)
   const variableDebtTotal = useMemo(() => {
     let total = 0;
 
@@ -89,63 +93,79 @@ export function useFinance() {
   }, [debts]);
 
   /* =========================================================
-     SAÍDAS MENSAIS (RECORRENTES)
+     SAÍDAS FINANCEIRAS (gasto real)
+  ========================================================= */
+
+  const financialOutflows =
+    subsTotal +       // assinaturas
+    budgetTotal;      // despesas do orçamento
+
+  /* =========================================================
+     CONSTRUÇÃO FINANCEIRA (alocação de capital)
   ========================================================= */
 
   const investmentsOutflow =
     settings?.consider_investments_in_cashflow
-      ? monthlyInvestmentOutflow
+      ? monthlyInvestmentsOutflow
       : 0;
 
-  const monthlyExpenses =
-    subsTotal +
-    budgetTotal +
-    monthlyDebtOutflow +
+  const financialConstruction =
+    monthlyGoalsOutflow +
     investmentsOutflow;
 
   /* =========================================================
-     ENTRADAS MENSAIS (RECORRENTES)
+     DÍVIDAS FINANCEIRAS
   ========================================================= */
 
-  const monthlyIncome = totalMonthlyIncome;
+  const debtOutflows =
+    monthlyDebtOutflow + variableDebtTotal;
 
   /* =========================================================
-     TOTAIS DO MÊS (PAINEL)
+     TOTAIS DO MÊS
   ========================================================= */
 
-  const totalIncome = monthlyIncome + variableIncomeTotal;
-  const totalExpenses = monthlyExpenses + variableDebtTotal;
+  const totalMonthlyOutflows =
+    financialOutflows +
+    financialConstruction +
+    debtOutflows;
 
   /* =========================================================
-     SALDO
+     SALDOS (NOVO MODELO)
   ========================================================= */
 
-  const balance = totalIncome - totalExpenses;
+  // Saldo livre → o que sobra após gastos reais
+  const freeBalance =
+    totalIncome - financialOutflows;
+
+  // Saldo comprometido → construção + dívidas
+  const committedBalance =
+    financialConstruction + debtOutflows;
 
   /* =========================================================
-     PROJEÇÕES ANUAIS (12 MESES)
+     PROJEÇÕES ANUAIS
   ========================================================= */
 
-  // ENTRADAS
-  const annualIncomeFixed = monthlyIncome * 12;
-  const annualIncomeWithVariable =
-    annualIncomeFixed + variableIncomeTotal;
+  // RECEBIMENTOS + CONSTRUÇÃO
+  const annualIncomeProjection =
+    fixedIncome * 12 +
+    variableIncomeTotal +
+    financialConstruction * 12;
 
-  // SAÍDAS
-  const annualExpensesFixed = monthlyExpenses * 12;
-  const annualExpensesWithVariable =
-    annualExpensesFixed + variableDebtTotal;
+  // SAÍDAS + DÍVIDAS
+  const annualOutflowsProjection =
+    financialOutflows * 12 +
+    debtOutflows * 12;
 
   /* =========================================================
      INSIGHT
   ========================================================= */
 
   const insight =
-    balance < 0
-      ? "Seu mês tende ao negativo. Vamos ajustar juntos."
-      : balance < totalExpenses * 0.15
-      ? "Positivo, mas apertado. Pequenos ajustes já aliviam."
-      : "Mês saudável com folga. Ótimo para reforçar metas.";
+    freeBalance < 0
+      ? "Seu saldo livre está negativo. Ajustes urgentes são recomendados."
+      : freeBalance < financialOutflows * 0.15
+      ? "Saldo livre positivo, porém apertado. Pequenas otimizações ajudam."
+      : "Saldo livre saudável. Bom momento para fortalecer metas.";
 
   /* =========================================================
      RELOAD GLOBAL
@@ -163,36 +183,48 @@ export function useFinance() {
   }
 
   /* =========================================================
-     RETURN — CONTRATO FINANCE
+     RETURN — CONTRATO FINAL FINANCE
   ========================================================= */
 
   return {
     /* ---------- ENTRADAS ---------- */
-    totalIncome,
-    monthlyIncome,
-    variableIncomeTotal,
+    income: {
+      fixed: fixedIncome,
+      variable: variableIncomeTotal,
+      total: totalIncome,
+    },
 
     /* ---------- SAÍDAS ---------- */
-    totalExpenses,
-    monthlyExpenses,
-    variableDebtTotal,
-    subsTotal,
-    budgetTotal,
+    outflows: {
+      financial: financialOutflows,
+      construction: financialConstruction,
+      debts: debtOutflows,
+      total: totalMonthlyOutflows,
+      breakdown: {
+        subscriptions: subsTotal,
+        budget: budgetTotal,
+        goals: monthlyGoalsOutflow,
+        investments: investmentsOutflow,
+        debts: monthlyDebtOutflow,
+        variableDebts: variableDebtTotal,
+      },
+    },
+
+    /* ---------- SALDOS ---------- */
+    balances: {
+      free: freeBalance,
+      committed: committedBalance,
+    },
 
     /* ---------- PROJEÇÕES ---------- */
     projections: {
-      income: {
-        fixed: annualIncomeFixed,
-        withVariable: annualIncomeWithVariable,
-      },
-      expenses: {
-        fixed: annualExpensesFixed,
-        withVariable: annualExpensesWithVariable,
+      annual: {
+        incomePlusConstruction: annualIncomeProjection,
+        outflowsPlusDebts: annualOutflowsProjection,
       },
     },
 
     /* ---------- PAINEL ---------- */
-    balance,
     insight,
 
     /* ---------- EXTRAS ---------- */
