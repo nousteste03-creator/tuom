@@ -3,8 +3,6 @@ import { View, Text, TouchableOpacity } from "react-native";
 import { BlurView } from "expo-blur";
 import Icon from "@/components/ui/Icon";
 import { useRouter } from "expo-router";
-import { useBudget } from "@/context/BudgetContext";
-import { useFinance } from "@/hooks/useFinance";
 
 const COLORS = {
   glass: "rgba(255,255,255,0.03)",
@@ -14,41 +12,40 @@ const COLORS = {
   dividerSoft: "rgba(255,255,255,0.06)",
 };
 
-export default function MonthlyBudgetCard() {
+type MonthlyBudgetSnapshot = {
+  totalSpent: number;
+  totalLimit: number;
+  percentUsed: number; // 0–1
+  categories: Array<{
+    id: string;
+    title: string;
+    spent: number;
+    limit: number;
+    percent: number; // 0–1
+  }>;
+  subscriptions: { total: number };
+};
+
+type Props = { snapshot?: Partial<MonthlyBudgetSnapshot> };
+
+export default function MonthlyBudgetCard({ snapshot }: Props) {
   const router = useRouter();
 
-  const { categories } = useBudget();
-  const { subsTotal } = useFinance();
+  const safeSnapshot: MonthlyBudgetSnapshot = {
+    totalSpent: snapshot?.totalSpent || 0,
+    totalLimit: snapshot?.totalLimit || 0,
+    percentUsed: snapshot?.percentUsed ?? 0,
+    categories: snapshot?.categories || [],
+    subscriptions: snapshot?.subscriptions || { total: 0 },
+  };
 
   const currency = (v: number) =>
-    new Intl.NumberFormat("pt-BR", {
-      style: "currency",
-      currency: "BRL",
-    }).format(v || 0);
+    new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v || 0);
 
-  const realCategories = categories.filter(
-    (c: any) => c.id !== "builtin-subscriptions"
-  );
-
-  const spentCategorias = realCategories.reduce(
-    (acc: number, c: any) => acc + Number(c.spent || 0),
-    0
-  );
-
-  const limitCategorias = realCategories.reduce(
-    (acc: number, c: any) => acc + Number(c.limit_amount || 0),
-    0
-  );
-
-  const totalSpentMonth = spentCategorias + subsTotal;
-
-  const pctMes =
-    limitCategorias > 0
-      ? Math.min((totalSpentMonth / limitCategorias) * 100, 100)
-      : 0;
+  const pctMes = Math.min(safeSnapshot.percentUsed, 100);
 
   return (
-    <View style={{ borderRadius: 26, overflow: "hidden" }}>
+    <View style={{ borderRadius: 26, overflow: "hidden", marginBottom: 24 }}>
       <BlurView
         intensity={14}
         tint="dark"
@@ -62,45 +59,19 @@ export default function MonthlyBudgetCard() {
         }}
       >
         {/* HEADER */}
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
           <View style={{ flex: 1, paddingRight: 12 }}>
-            <Text
-              style={{
-                color: COLORS.textPrimary,
-                fontSize: 19,
-                fontWeight: "700",
-              }}
-            >
+            <Text style={{ color: COLORS.textPrimary, fontSize: 19, fontWeight: "700" }}>
               Orçamento do mês
             </Text>
-
-            <Text
-              style={{
-                color: COLORS.textSecondary,
-                fontSize: 13,
-                marginTop: 2,
-              }}
-            >
+            <Text style={{ color: COLORS.textSecondary, fontSize: 13, marginTop: 2 }}>
               Categorias + assinaturas automáticas.
             </Text>
           </View>
 
           <TouchableOpacity
             onPress={() => router.push("/finance/budget")}
-            style={{
-              width: 34,
-              height: 34,
-              borderRadius: 17,
-              justifyContent: "center",
-              alignItems: "center",
-              backgroundColor: COLORS.glass,
-            }}
+            style={{ width: 34, height: 34, borderRadius: 17, justifyContent: "center", alignItems: "center", backgroundColor: COLORS.glass }}
           >
             <Icon name="refresh" size={18} color="#FFFFFF" />
           </TouchableOpacity>
@@ -108,54 +79,24 @@ export default function MonthlyBudgetCard() {
 
         {/* TOTAL */}
         <View style={{ gap: 10 }}>
-          <View
-            style={{
-              flexDirection: "row",
-              justifyContent: "space-between",
-            }}
-          >
+          <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
             <View>
-              <Text style={{ color: COLORS.textMuted, fontSize: 11 }}>
-                Gasto no mês
-              </Text>
-              <Text
-                style={{
-                  color: COLORS.textPrimary,
-                  fontSize: 16,
-                  fontWeight: "600",
-                }}
-              >
-                {currency(totalSpentMonth)}
+              <Text style={{ color: COLORS.textMuted, fontSize: 11 }}>Gasto no mês</Text>
+              <Text style={{ color: COLORS.textPrimary, fontSize: 16, fontWeight: "600" }}>
+                {currency(safeSnapshot.totalSpent)}
               </Text>
             </View>
 
             <View style={{ alignItems: "flex-end" }}>
-              <Text style={{ color: COLORS.textMuted, fontSize: 11 }}>
-                Limite definido
-              </Text>
-              <Text
-                style={{
-                  color: COLORS.textPrimary,
-                  fontSize: 16,
-                  fontWeight: "600",
-                }}
-              >
-                {currency(limitCategorias)}
+              <Text style={{ color: COLORS.textMuted, fontSize: 11 }}>Limite definido</Text>
+              <Text style={{ color: COLORS.textPrimary, fontSize: 16, fontWeight: "600" }}>
+                {currency(safeSnapshot.totalLimit)}
               </Text>
             </View>
           </View>
 
           {/* BARRA */}
-          <View
-            style={{
-              width: "100%",
-              height: 4,
-              borderRadius: 999,
-              backgroundColor: "rgba(255,255,255,0.04)",
-              overflow: "hidden",
-              marginTop: 4,
-            }}
-          >
+          <View style={{ width: "100%", height: 4, borderRadius: 999, backgroundColor: "rgba(255,255,255,0.04)", overflow: "hidden", marginTop: 4 }}>
             <View
               style={{
                 width: `${pctMes}%`,
@@ -170,95 +111,42 @@ export default function MonthlyBudgetCard() {
             />
           </View>
 
-          <Text
-            style={{
-              color: COLORS.textSecondary,
-              fontSize: 12,
-            }}
-          >
-            {limitCategorias > 0
-              ? `${pctMes.toFixed(0)}% do limite utilizado`
-              : "Nenhum limite definido para este mês"}
+          <Text style={{ color: COLORS.textSecondary, fontSize: 12 }}>
+            {safeSnapshot.totalLimit > 0 ? `${pctMes.toFixed(0)}% do limite utilizado` : "Nenhum limite definido para este mês"}
           </Text>
         </View>
 
         {/* CATEGORIAS */}
         <View>
-          {realCategories.map((cat: any, idx: number) => {
-            const limit = Number(cat.limit_amount || 0);
-            const spent = Number(cat.spent || 0);
-            const pct =
-              limit > 0 ? Math.min((spent / limit) * 100, 100) : 0;
-
-            const color =
-              pct < 70
-                ? "rgba(94,255,185,0.8)"
-                : pct < 100
-                ? "rgba(255,255,140,0.9)"
-                : "rgba(255,120,120,0.9)";
+          {safeSnapshot.categories.map((cat, idx) => {
+            const pctCat = Math.min(cat.percent, 100);
 
             return (
               <View
                 key={cat.id}
-                style={{
-                  paddingVertical: 10,
-                  borderTopWidth: idx === 0 ? 0.5 : 0.4,
-                  borderTopColor: COLORS.dividerSoft,
-                }}
+                style={{ paddingVertical: 10, borderTopWidth: idx === 0 ? 0.5 : 0.4, borderTopColor: COLORS.dividerSoft }}
               >
-                <View
-                  style={{
-                    flexDirection: "row",
-                    justifyContent: "space-between",
-                  }}
-                >
+                <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
                   <View>
-                    <Text
-                      style={{
-                        color: COLORS.textPrimary,
-                        fontSize: 14,
-                        fontWeight: "600",
-                      }}
-                    >
-                      {cat.title}
-                    </Text>
-
-                    <Text
-                      style={{
-                        color: COLORS.textSecondary,
-                        fontSize: 12,
-                        marginTop: 2,
-                      }}
-                    >
-                      {currency(spent)} /{" "}
-                      {limit > 0 ? currency(limit) : "Sem limite"}
+                    <Text style={{ color: COLORS.textPrimary, fontSize: 14, fontWeight: "600" }}>{cat.title}</Text>
+                    <Text style={{ color: COLORS.textSecondary, fontSize: 12, marginTop: 2 }}>
+                      {currency(cat.spent)} / {cat.limit > 0 ? currency(cat.limit) : "Sem limite"}
                     </Text>
                   </View>
-
-                  <Text
-                    style={{
-                      color: COLORS.textSecondary,
-                      fontSize: 12,
-                    }}
-                  >
-                    {limit > 0 ? `${pct.toFixed(0)}%` : "-"}
-                  </Text>
+                  <Text style={{ color: COLORS.textSecondary, fontSize: 12 }}>{cat.limit > 0 ? `${pctCat.toFixed(0)}%` : "-"}</Text>
                 </View>
 
-                <View
-                  style={{
-                    marginTop: 6,
-                    height: 3,
-                    borderRadius: 999,
-                    backgroundColor: "rgba(255,255,255,0.04)",
-                    overflow: "hidden",
-                  }}
-                >
+                <View style={{ marginTop: 6, height: 3, borderRadius: 999, backgroundColor: "rgba(255,255,255,0.04)", overflow: "hidden" }}>
                   <View
                     style={{
-                      width: `${pct}%`,
+                      width: `${pctCat}%`,
                       height: "100%",
-                      backgroundColor: color,
+                      backgroundColor:
+                        pctCat < 70
+                          ? "rgba(94,255,185,0.8)"
+                          : pctCat < 100
+                          ? "rgba(255,255,140,0.9)"
+                          : "rgba(255,120,120,0.9)",
                     }}
                   />
                 </View>
@@ -267,31 +155,10 @@ export default function MonthlyBudgetCard() {
           })}
 
           {/* ASSINATURAS */}
-          <View
-            style={{
-              paddingTop: 12,
-              borderTopWidth: realCategories.length ? 0.4 : 0.5,
-              borderTopColor: COLORS.dividerSoft,
-            }}
-          >
-            <Text
-              style={{
-                color: COLORS.textPrimary,
-                fontSize: 14,
-                fontWeight: "600",
-              }}
-            >
-              Assinaturas
-            </Text>
-
-            <Text
-              style={{
-                marginTop: 4,
-                color: COLORS.textSecondary,
-                fontSize: 12,
-              }}
-            >
-              {currency(subsTotal)}
+          <View style={{ paddingTop: 12, borderTopWidth: 0.5, borderTopColor: COLORS.dividerSoft }}>
+            <Text style={{ color: COLORS.textPrimary, fontSize: 14, fontWeight: "600" }}>Assinaturas</Text>
+            <Text style={{ marginTop: 4, color: COLORS.textSecondary, fontSize: 12 }}>
+              {currency(safeSnapshot.subscriptions.total)}
             </Text>
           </View>
         </View>
