@@ -20,56 +20,50 @@ type Props = {
 export default function FinanceOverviewPanel({ snapshot }: Props) {
   const [mode, setMode] = useState<Mode>("geral");
 
-  // Fallback caso snapshot ainda não esteja carregado
-  const { panel, budget } = snapshot || {
-    panel: {
-      incomeTotal: 0,
-      expenseTotal: 0,
-      fixedExpenseTotal: 0,
-      investmentOutflow: 0,
-      debtOutflow: 0,
-      committedBalance: 0,
-      freeBalance: 0,
-      annualIncomeProjection: 0,
-      annualOutflowProjection: 0,
-    },
-    budget: {
-      totalSpent: 0,
-      totalLimit: 0,
-      percentUsed: 0,
-      categories: [],
-      subscriptions: { total: 0 },
-    },
+  const panel = snapshot?.panel ?? {
+    incomeTotal: 0,
+    expenseTotal: 0,
+    fixedExpenseTotal: 0,
+    investmentOutflow: 0,
+    debtOutflow: 0,
+    goalsOutflow: 0,
+    committedBalance: 0,
+    freeBalance: 0,
+    annualIncomeProjection: 0,
+    annualOutflowProjection: 0,
+  };
+
+  const budget = snapshot?.budget ?? {
+    totalSpent: 0,
+    totalLimit: 0,
+    percentUsed: 0,
+    categories: [],
+    subscriptions: { total: 0 },
+    goalsTotal: 0,
   };
 
   const currency = (v: number) =>
     new Intl.NumberFormat("pt-BR", {
       style: "currency",
       currency: "BRL",
-    }).format(v || 0);
+    }).format(isNaN(v) ? 0 : v);
 
   return (
-    <View style={{ marginHorizontal: 0, marginBottom: 24 }}>
+    <View style={{ marginBottom: 24 }}>
       <BlurView
         intensity={45}
         tint="dark"
         style={{
           borderRadius: 26,
           padding: 22,
-          backgroundColor: "rgba(255,255,255,0.035)",
+          backgroundColor: "rgba(0,0,0,0.85)",
           borderWidth: 1,
           borderColor: "rgba(255,255,255,0.08)",
         }}
       >
         {/* HEADER */}
         <View style={{ marginBottom: 18 }}>
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              marginBottom: 6,
-            }}
-          >
+          <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 6 }}>
             <Icon name="wallet-outline" size={16} color="#E5E7EB" />
             <Text
               style={{
@@ -84,18 +78,14 @@ export default function FinanceOverviewPanel({ snapshot }: Props) {
           </View>
 
           <Text style={{ color: "#9CA3AF", fontSize: 12 }}>
-            Visão consolidada do seu mês financeiro
+            Resumo financeiro mensal com base nos seus compromissos e planejamento
           </Text>
         </View>
 
         {/* TABS */}
         <View style={{ flexDirection: "row", marginBottom: 20 }}>
           {MODES.map((m) => (
-            <TouchableOpacity
-              key={m.key}
-              onPress={() => setMode(m.key)}
-              style={{ marginRight: 20 }}
-            >
+            <TouchableOpacity key={m.key} onPress={() => setMode(m.key)} style={{ marginRight: 20 }}>
               <Text
                 style={{
                   color: mode === m.key ? "#FFFFFF" : "#9CA3AF",
@@ -112,21 +102,15 @@ export default function FinanceOverviewPanel({ snapshot }: Props) {
         {/* VISÃO GERAL */}
         {mode === "geral" && (
           <View style={{ gap: 14 }}>
+            <Metric label="Receitas mensais" value={currency(panel.incomeTotal)} />
             <Metric
-              label="Receitas mensais"
-              value={currency(panel.incomeTotal)}
-            />
-
-            <Metric
-              label="Gastos comprometidos"
+              label="Total comprometido no mês"
               value={currency(panel.committedBalance)}
               negative
             />
-
             <Divider />
-
             <Metric
-              label="Saldo disponível"
+              label="Saldo livre estimado"
               value={currency(panel.freeBalance)}
               highlight
             />
@@ -136,20 +120,22 @@ export default function FinanceOverviewPanel({ snapshot }: Props) {
         {/* COMPROMISSOS */}
         {mode === "compromissos" && (
           <View style={{ gap: 14 }}>
-            <SectionTitle>Despesas recorrentes</SectionTitle>
-
+            <SectionTitle>Gastos fixos</SectionTitle>
             <Metric
-              label="Contas fixas e assinaturas"
+              label="Assinaturas e despesas recorrentes"
               value={currency(panel.fixedExpenseTotal)}
             />
 
             <Divider />
 
-            <SectionTitle>Orçamento mensal</SectionTitle>
-
+            <SectionTitle>Gastos variáveis</SectionTitle>
             <Metric
-              label="Limite definido no mês"
+              label="Orçamento mensal planejado"
               value={currency(budget.totalLimit)}
+            />
+            <Metric
+              label="Gasto variável realizado"
+              value={currency(budget.totalSpent)}
             />
           </View>
         )}
@@ -157,23 +143,11 @@ export default function FinanceOverviewPanel({ snapshot }: Props) {
         {/* PLANEJAMENTO */}
         {mode === "planejamento" && (
           <View style={{ gap: 14 }}>
-            <SectionTitle>Construção financeira</SectionTitle>
-
+            <SectionTitle>Planejamento financeiro ativo</SectionTitle>
+            <Metric label="Metas em andamento" value={currency(panel.goalsOutflow)} />
+            <Metric label="Dívidas (parcelas do mês)" value={currency(panel.debtOutflow)} />
             <Metric
-              label="Metas"
-              value={currency(
-                panel.committedBalance -
-                  panel.fixedExpenseTotal -
-                  panel.expenseTotal -
-                  panel.debtOutflow -
-                  panel.investmentOutflow
-              )}
-            />
-
-            <Metric label="Dívidas" value={currency(panel.debtOutflow)} />
-
-            <Metric
-              label="Investimentos"
+              label="Investimentos programados"
               value={currency(panel.investmentOutflow)}
             />
           </View>
@@ -184,6 +158,7 @@ export default function FinanceOverviewPanel({ snapshot }: Props) {
 }
 
 /* ---------- UI HELPERS ---------- */
+
 function Metric({
   label,
   value,
@@ -200,11 +175,7 @@ function Metric({
       <Text style={{ color: "#9CA3AF", fontSize: 12 }}>{label}</Text>
       <Text
         style={{
-          color: highlight
-            ? "#A7F3D0"
-            : negative
-            ? "#FCA5A5"
-            : "#FFFFFF",
+          color: highlight ? "#A7F3D0" : negative ? "#FCA5A5" : "#FFFFFF",
           fontSize: 16,
           fontWeight: "700",
         }}
@@ -217,13 +188,7 @@ function Metric({
 
 function SectionTitle({ children }: { children: string }) {
   return (
-    <Text
-      style={{
-        color: "#E5E7EB",
-        fontSize: 13,
-        fontWeight: "600",
-      }}
-    >
+    <Text style={{ color: "#E5E7EB", fontSize: 13, fontWeight: "600" }}>
       {children}
     </Text>
   );
