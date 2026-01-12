@@ -17,7 +17,6 @@ import Icon from "@/components/ui/Icon";
 import { useSubscriptions } from "@/hooks/useSubscriptions";
 import { supabase } from "@/lib/supabase";
 import type { Subscription } from "@/types/subscriptions";
-import { updateSubscription } from "@/services/subscriptions";
 
 const brandFont = Platform.select({
   ios: "SF Pro Display",
@@ -26,7 +25,7 @@ const brandFont = Platform.select({
 
 export default function EditSubscriptionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { subscriptions, refetch } = useSubscriptions();
+  const { subscriptions, update } = useSubscriptions(); // <-- ajustado
 
   const [subscription, setSubscription] = useState<Subscription | null>(null);
 
@@ -43,9 +42,7 @@ export default function EditSubscriptionScreen() {
     async function load() {
       if (!id) return;
 
-      // tenta pegar da lista em memória primeiro
       const fromHook = subscriptions.find((s) => s.id === id);
-
       let sub: Subscription | null = null;
 
       if (fromHook) {
@@ -69,12 +66,8 @@ export default function EditSubscriptionScreen() {
       setSubscription(sub);
       setServiceName(sub.service);
       setPrice(String(sub.price).replace(".", ","));
-      setFrequency(
-        sub.frequency === "yearly" ? "yearly" : "monthly"
-      );
-      if (sub.next_billing) {
-        setNextBilling(new Date(sub.next_billing));
-      }
+      setFrequency(sub.frequency === "yearly" ? "yearly" : "monthly");
+      if (sub.next_billing) setNextBilling(new Date(sub.next_billing));
     }
 
     load();
@@ -104,10 +97,7 @@ export default function EditSubscriptionScreen() {
       return;
     }
 
-    const numericPrice = Number(
-      price.replace(",", ".").replace(/[^\d.]/g, "")
-    );
-
+    const numericPrice = Number(price.replace(",", ".").replace(/[^\d.]/g, ""));
     if (Number.isNaN(numericPrice) || numericPrice <= 0) {
       setErrorMessage("Preço inválido.");
       return;
@@ -123,15 +113,9 @@ export default function EditSubscriptionScreen() {
         next_billing: nextBilling.toISOString().split("T")[0],
       };
 
-      const res = await updateSubscription(id, payload);
+      // usa o update reativo do hook
+      await update(id, payload);
 
-      if (res.error) {
-        console.log("UPDATE ERROR:", res.error);
-        setErrorMessage("Erro ao salvar alterações. Tente novamente.");
-        return;
-      }
-
-      await refetch?.();
       router.replace(`/subscriptions/${id}`);
     } catch (err) {
       console.log("UPDATE ERROR:", err);

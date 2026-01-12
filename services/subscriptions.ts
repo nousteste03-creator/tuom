@@ -1,11 +1,11 @@
 import { supabase } from "@/lib/supabase";
 import type { Subscription } from "@/types/subscriptions";
+import { resolveSubscriptionCategory } from "@/lib/subscriptions/resolveSubscriptionCategory";
 
 /* ============================================================
    GET USER SUBSCRIPTIONS — versão estável e segura
    ============================================================ */
 export async function getUserSubscriptions() {
-  // garante que o usuário esteja logado
   const {
     data: { user },
     error: userError,
@@ -46,12 +46,15 @@ export async function addSubscription(payload: {
 
   if (userError || !user) throw new Error("Usuário não autenticado.");
 
+  const category = resolveSubscriptionCategory(payload.service);
+
   const { data, error } = await supabase
     .from("subscriptions")
     .insert([
       {
         user_id: user.id,
         ...payload,
+        category,
       },
     ])
     .select()
@@ -60,6 +63,34 @@ export async function addSubscription(payload: {
   if (error) throw error;
 
   return data as Subscription;
+}
+
+/* ============================================================
+   UPDATE SUBSCRIPTION
+   ============================================================ */
+export async function updateSubscription(
+  id: string,
+  payload: Partial<Omit<Subscription, "id" | "user_id" | "created_at">>
+) {
+  // resolve categoria se o service estiver sendo atualizado
+  const updatedPayload = {
+    ...payload,
+    category: payload.service ? resolveSubscriptionCategory(payload.service) : undefined,
+  };
+
+  const { data, error } = await supabase
+    .from("subscriptions")
+    .update(updatedPayload)
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) {
+    console.log("UPDATE SUBSCRIPTION ERROR:", error);
+    return { error };
+  }
+
+  return { data: data as Subscription };
 }
 
 /* ============================================================

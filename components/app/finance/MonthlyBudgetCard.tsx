@@ -1,10 +1,11 @@
 "use client";
 
 import React from "react";
-import { View, Text } from "react-native";
+import { View, Text, TouchableOpacity } from "react-native";
 import { BlurView } from "expo-blur";
 import { useRouter } from "expo-router";
 import { useBudget } from "@/context/BudgetContext";
+import Icon from "@/components/ui/Icon";
 
 const COLORS = {
   glass: "rgba(0,0,0,0.85)",
@@ -33,7 +34,11 @@ export default function MonthlyBudgetCard() {
     totalLimit > 0 ? Math.min((totalExpenses / totalLimit) * 100, 100) : 0;
 
   return (
-    <View style={{ borderRadius: 26, overflow: "hidden", marginBottom: 24 }}>
+    <TouchableOpacity
+      activeOpacity={0.92}
+      onPress={() => router.push("/finance/budget")}
+      style={{ borderRadius: 26, overflow: "hidden", marginBottom: 24 }}
+    >
       <BlurView
         intensity={45}
         tint="dark"
@@ -44,13 +49,32 @@ export default function MonthlyBudgetCard() {
           gap: 20,
         }}
       >
-        <Text
-          style={{ color: COLORS.textPrimary, fontSize: 19, fontWeight: "700" }}
-          onPress={() => router.push("/finance/budget")}
+        {/* HEADER */}
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
         >
-          Orçamento do mês
-        </Text>
+          <Text
+            style={{
+              color: COLORS.textPrimary,
+              fontSize: 19,
+              fontWeight: "700",
+            }}
+          >
+            Orçamento do mês
+          </Text>
 
+          <Icon
+            name="chevron-right"
+            size={18}
+            color="rgba(255,255,255,0.5)"
+          />
+        </View>
+
+        {/* RESUMO */}
         <View>
           <Text style={{ color: COLORS.textMuted, fontSize: 11 }}>
             Gasto no mês
@@ -69,6 +93,7 @@ export default function MonthlyBudgetCard() {
           </Text>
         </View>
 
+        {/* PROGRESS */}
         <View
           style={{
             height: 4,
@@ -91,30 +116,41 @@ export default function MonthlyBudgetCard() {
           />
         </View>
 
-        {categories.map((cat: any) => {
-          const pct =
-            cat.limit_amount > 0
-              ? Math.min((cat.spent / cat.limit_amount) * 100, 100)
-              : 0;
+        {/* CATEGORIAS */}
+        {categories.map((cat: any) => (
+          <View
+            key={cat.id}
+            style={{
+              borderTopWidth: 0.4,
+              borderTopColor: COLORS.dividerSoft,
+              paddingTop: 8,
+            }}
+          >
+            <Text style={{ color: COLORS.textPrimary, fontSize: 14 }}>
+              {cat.title}
+            </Text>
+            <Text style={{ color: COLORS.textSecondary, fontSize: 12 }}>
+              {currency(cat.spent)} /{" "}
+              {cat.limit_amount > 0
+                ? currency(cat.limit_amount)
+                : "Sem limite"}
+            </Text>
+          </View>
+        ))}
 
-          return (
-            <View
-              key={cat.id}
-              style={{ borderTopWidth: 0.4, borderTopColor: COLORS.dividerSoft }}
-            >
-              <Text style={{ color: COLORS.textPrimary, fontSize: 14 }}>
-                {cat.title}
-              </Text>
-              <Text style={{ color: COLORS.textSecondary, fontSize: 12 }}>
-                {currency(cat.spent)} /{" "}
-                {cat.limit_amount > 0
-                  ? currency(cat.limit_amount)
-                  : "Sem limite"}
-              </Text>
-            </View>
-          );
-        })}
+        {/* CTA HINT */}
+        <View style={{ alignItems: "flex-end", marginTop: 4 }}>
+          <Text
+            style={{
+              color: "rgba(255,255,255,0.45)",
+              fontSize: 11,
+              fontWeight: "500",
+            }}
+          >
+            Ver detalhes do orçamento →
+          </Text>
+        </View>
       </BlurView>
-    </View>
+    </TouchableOpacity>
   );
 }

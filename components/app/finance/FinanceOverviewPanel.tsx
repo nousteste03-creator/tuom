@@ -20,6 +20,9 @@ type Props = {
 export default function FinanceOverviewPanel({ snapshot }: Props) {
   const [mode, setMode] = useState<Mode>("geral");
 
+  /* =========================
+     PANEL — snapshot.panel
+  ========================= */
   const panel = snapshot?.panel ?? {
     incomeTotal: 0,
     expenseTotal: 0,
@@ -33,13 +36,15 @@ export default function FinanceOverviewPanel({ snapshot }: Props) {
     annualOutflowProjection: 0,
   };
 
-  const budget = snapshot?.budget ?? {
-    totalSpent: 0,
-    totalLimit: 0,
+  /* =========================
+     BUDGET — snapshot.budget.variable
+     (AJUSTE REAL)
+  ========================= */
+  const variableBudget = snapshot?.budget?.variable ?? {
+    planned: 0,
+    used: 0,
+    remaining: 0,
     percentUsed: 0,
-    categories: [],
-    subscriptions: { total: 0 },
-    goalsTotal: 0,
   };
 
   const currency = (v: number) =>
@@ -63,7 +68,13 @@ export default function FinanceOverviewPanel({ snapshot }: Props) {
       >
         {/* HEADER */}
         <View style={{ marginBottom: 18 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 6 }}>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              marginBottom: 6,
+            }}
+          >
             <Icon name="wallet-outline" size={16} color="#E5E7EB" />
             <Text
               style={{
@@ -85,7 +96,11 @@ export default function FinanceOverviewPanel({ snapshot }: Props) {
         {/* TABS */}
         <View style={{ flexDirection: "row", marginBottom: 20 }}>
           {MODES.map((m) => (
-            <TouchableOpacity key={m.key} onPress={() => setMode(m.key)} style={{ marginRight: 20 }}>
+            <TouchableOpacity
+              key={m.key}
+              onPress={() => setMode(m.key)}
+              style={{ marginRight: 20 }}
+            >
               <Text
                 style={{
                   color: mode === m.key ? "#FFFFFF" : "#9CA3AF",
@@ -131,11 +146,11 @@ export default function FinanceOverviewPanel({ snapshot }: Props) {
             <SectionTitle>Gastos variáveis</SectionTitle>
             <Metric
               label="Orçamento mensal planejado"
-              value={currency(budget.totalLimit)}
+              value={currency(variableBudget.planned)}
             />
             <Metric
               label="Gasto variável realizado"
-              value={currency(budget.totalSpent)}
+              value={currency(variableBudget.used)}
             />
           </View>
         )}
@@ -144,8 +159,14 @@ export default function FinanceOverviewPanel({ snapshot }: Props) {
         {mode === "planejamento" && (
           <View style={{ gap: 14 }}>
             <SectionTitle>Planejamento financeiro ativo</SectionTitle>
-            <Metric label="Metas em andamento" value={currency(panel.goalsOutflow)} />
-            <Metric label="Dívidas (parcelas do mês)" value={currency(panel.debtOutflow)} />
+            <Metric
+              label="Metas em andamento"
+              value={currency(panel.goalsOutflow)}
+            />
+            <Metric
+              label="Dívidas (parcelas do mês)"
+              value={currency(panel.debtOutflow)}
+            />
             <Metric
               label="Investimentos programados"
               value={currency(panel.investmentOutflow)}

@@ -1,6 +1,11 @@
 // hooks/useSubscriptions.ts
-import { useEffect, useState } from "react";
-import { getUserSubscriptions } from "@/services/subscriptions";
+import { useEffect, useState, useCallback } from "react";
+import {
+  getUserSubscriptions,
+  addSubscription,
+  updateSubscription,
+  deleteSubscription,
+} from "@/services/subscriptions";
 import type { Subscription } from "@/types/subscriptions";
 
 type Metrics = {
@@ -71,10 +76,9 @@ export function useSubscriptions() {
   const [annualTotal, setAnnualTotal] = useState(0);
   const [upcomingRenewals, setUpcomingRenewals] = useState<Subscription[]>([]);
 
-  async function load() {
+  const reload = useCallback(async () => {
     try {
       setLoading(true);
-
       const data = await getUserSubscriptions();
       setSubscriptions(data);
 
@@ -88,11 +92,99 @@ export function useSubscriptions() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
-    load();
-  }, []);
+    reload();
+  }, [reload]);
+
+  // ===========================================================
+  // Funções reativas de CRUD
+  // ===========================================================
+  const add = useCallback(
+    async (payload: {
+      service: string;
+      price: number;
+      frequency: string;
+      next_billing: string;
+    }) => {
+      setLoading(true);
+      try {
+        const newSub = await addSubscription(payload);
+        const updatedSubs = [newSub, ...subscriptions];
+        setSubscriptions(updatedSubs);
+
+        const metrics = computeMetrics(updatedSubs);
+        setMonthlyTotal(metrics.monthlyTotal);
+        setAnnualTotal(metrics.annualTotal);
+        setUpcomingRenewals(metrics.upcomingRenewals);
+
+        return newSub;
+      } catch (err) {
+        console.error("ADD SUBSCRIPTION ERROR:", err);
+        setError(err);
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [subscriptions]
+  );
+
+  const update = useCallback(
+    async (
+      id: string,
+      payload: Partial<Omit<Subscription, "id" | "user_id" | "created_at">>
+    ) => {
+      setLoading(true);
+      try {
+        const { data, error } = await updateSubscription(id, payload);
+        if (error) throw error;
+
+        const updatedSubs = subscriptions.map((s) =>
+          s.id === id ? (data as Subscription) : s
+        );
+        setSubscriptions(updatedSubs);
+
+        const metrics = computeMetrics(updatedSubs);
+        setMonthlyTotal(metrics.monthlyTotal);
+        setAnnualTotal(metrics.annualTotal);
+        setUpcomingRenewals(metrics.upcomingRenewals);
+
+        return data;
+      } catch (err) {
+        console.error("UPDATE SUBSCRIPTION ERROR:", err);
+        setError(err);
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [subscriptions]
+  );
+
+  const remove = useCallback(
+    async (id: string) => {
+      setLoading(true);
+      try {
+        await deleteSubscription(id);
+        const updatedSubs = subscriptions.filter((s) => s.id !== id);
+        setSubscriptions(updatedSubs);
+
+        const metrics = computeMetrics(updatedSubs);
+        setMonthlyTotal(metrics.monthlyTotal);
+        setAnnualTotal(metrics.annualTotal);
+        setUpcomingRenewals(metrics.upcomingRenewals);
+      } catch (err) {
+        console.error("DELETE SUBSCRIPTION ERROR:", err);
+        setError(err);
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [subscriptions]
+  );
 
   return {
     subscriptions,
@@ -101,6 +193,9 @@ export function useSubscriptions() {
     upcomingRenewals,
     loading,
     error,
-    reload: load,
+    reload,
+    add,
+    update,
+    remove,
   };
 }

@@ -53,9 +53,9 @@ export default function SubscriptionCard({ subscription }: Props) {
         >
           {subscription.frequency === "monthly"
             ? "Mensal"
-            : subscription.frequency === "annual"
+            : subscription.frequency === "yearly"
             ? "Anual"
-            : subscription.frequency}
+            : "Semanal"}
           {subscription.next_billing
             ? ` • Próximo em ${subscription.next_billing}`
             : null}
@@ -82,7 +82,7 @@ export default function SubscriptionCard({ subscription }: Props) {
         >
           {subscription.frequency === "monthly"
             ? "/mês"
-            : subscription.frequency === "annual"
+            : subscription.frequency === "yearly"
             ? "/ano"
             : ""}
         </Text>

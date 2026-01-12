@@ -6,4 +6,5 @@ export type Subscription = {
   frequency: "monthly" | "yearly" | "weekly";
   next_billing: string;
   created_at: string;
+  category?: string | null;
 };
