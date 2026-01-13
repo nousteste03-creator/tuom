@@ -592,48 +592,68 @@ export function useGoals() {
   const cannotCreateReason =
     !canCreateNewGoal && !isPro ? "free_limit" : undefined;
 
-  /* ============================================================
-     Outflow mensal
-  ============================================================ */
+/* ============================================================
+   Outflow mensal
+============================================================ */
 
-  function computeOutflow(list: GoalWithStats[], type: GoalType) {
-    const now = new Date();
-    const y = now.getFullYear();
-    const m = now.getMonth();
+function computeOutflow(list: GoalWithStats[], type: GoalType) {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
 
-    let total = 0;
+  let total = 0;
 
-    for (const g of list) {
-      if (g.type !== type) continue;
+  for (const g of list) {
+    if (g.type !== type) continue;
 
-      for (const inst of g.installments) {
-        const d = new Date(inst.dueDate);
-        if (d.getFullYear() === y && d.getMonth() === m) {
-          total += inst.amount;
-        }
+    for (const inst of g.installments) {
+      const d = new Date(inst.dueDate);
+      if (d.getFullYear() === y && d.getMonth() === m) {
+        total += inst.amount;
       }
     }
-
-    return total;
   }
 
-  const monthlyDebtOutflow = useMemo(
-    () => computeOutflow(debts, "debt"),
-    [debts]
-  );
+  return total;
+}
 
-  const monthlyGoalsOutflow = useMemo(
-    () => computeOutflow(goals, "goal"),
-    [goals]
+/**
+ * Fallback planejado (autoRuleMonthly)
+ * Usado apenas quando NÃO há parcelas reais no mês
+ */
+function computePlannedOutflow(list: GoalWithStats[]) {
+  return list.reduce(
+    (acc, g) => acc + Number(g.autoRuleMonthly || 0),
+    0
   );
+}
 
-  const monthlyInvestmentsOutflow = useMemo(
-    () => computeOutflow(investments, "investment"),
-    [investments]
-  );
+const monthlyDebtOutflow = useMemo(
+  () => computeOutflow(debts, "debt"),
+  [debts]
+);
 
-  const monthlyTotalExpenses =
-    monthlyDebtOutflow + monthlyGoalsOutflow + monthlyInvestmentsOutflow;
+const monthlyGoalsOutflow = useMemo(
+  () => {
+    const real = computeOutflow(goals, "goal");
+    return real > 0 ? real : computePlannedOutflow(goals);
+  },
+  [goals]
+);
+
+const monthlyInvestmentsOutflow = useMemo(
+  () => {
+    const real = computeOutflow(investments, "investment");
+    return real > 0 ? real : computePlannedOutflow(investments);
+  },
+  [investments]
+);
+
+const monthlyTotalExpenses =
+  monthlyDebtOutflow +
+  monthlyGoalsOutflow +
+  monthlyInvestmentsOutflow;
+
 
   /* ============================================================
      Métodos helpers de leitura

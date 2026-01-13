@@ -1,31 +1,70 @@
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useMemo, useEffect } from "react";
 import { useIncomeSources } from "@/hooks/useIncomeSources";
-import { useGoals } from "@/hooks/useGoals";
+import { useGoals } from "@/context/GoalsContext";
 import { useBudget } from "@/context/BudgetContext";
 
 export function usePlanningSnapshot() {
-  const { totalMonthlyIncome, monthlyProjection, loading: loadingIncome } = useIncomeSources();
-  const { debts, investments, goals, loading: loadingGoals } = useGoals();
-  const { totalExpenses, categories, loading: loadingBudget } = useBudget();
+  /* ============================================================
+     FONTES PRIMÁRIAS (DOMÍNIO)
+  ============================================================ */
 
-  const [snapshotReady, setSnapshotReady] = useState(false);
+  const {
+    totalMonthlyIncome,
+    monthlyProjection,
+    loading: loadingIncome,
+  } = useIncomeSources();
+
+  const {
+    monthlyDebtOutflow,
+    monthlyGoalsOutflow,
+    monthlyInvestmentsOutflow,
+    loading: loadingGoals,
+  } = useGoals();
+
+  const {
+    totalExpenses, // despesas variáveis realizadas
+    categories,
+    loading: loadingBudget,
+  } = useBudget();
+
+  /* ============================================================
+     SNAPSHOT DERIVADO (ORQUESTRAÇÃO APENAS)
+     ❌ NÃO recalcula domínio financeiro
+     ✅ Apenas compõe agregados oficiais
+  ============================================================ */
 
   const snapshot = useMemo(() => {
-    if (!totalMonthlyIncome) return null;
+    if (totalMonthlyIncome == null) return null;
 
-    const sum = (arr: number[]) => arr.reduce((a, b) => a + b, 0);
+    /* ---------- BUDGET VARIÁVEL ---------- */
+    const variablePlanned = (categories ?? [])
+      .filter((c) => !c.isFixed)
+      .reduce((sum, c) => sum + Number(c.limit_amount || 0), 0);
 
-    const investmentOutflow = sum(investments.map((i) => i.autoRuleMonthly || 0));
-    const debtOutflow = sum(debts.flatMap((d) => d.installments?.map((i) => i.amount) || []));
-    const goalsOutflow = sum(goals.map((g) => g.autoRuleMonthly || 0));
+    const variableUsed = Number(totalExpenses || 0);
 
-    const variablePlanned = sum(
-      (categories || []).filter(c => !c.isFixed).map(c => Number(c.limit_amount || 0))
+    const variableRemaining = Math.max(
+      variablePlanned - variableUsed,
+      0
     );
-    const variableUsed = totalExpenses;
-    const variableRemaining = variablePlanned - variableUsed;
 
-    const committedBalance = totalExpenses + investmentOutflow + debtOutflow + goalsOutflow;
+    /* ---------- OUTFLOWS (FONTE ÚNICA: GoalsContext) ---------- */
+    const investmentOutflow = Number(monthlyInvestmentsOutflow || 0);
+    const debtOutflow = Number(monthlyDebtOutflow || 0);
+    const goalsOutflow = Number(monthlyGoalsOutflow || 0);
+
+    /**
+     * committedBalance =
+     * - despesas variáveis realizadas (budget)
+     * - + compromissos mensais de dívidas
+     * - + aportes de metas
+     * - + aportes de investimentos
+     */
+    const committedBalance =
+      variableUsed +
+      investmentOutflow +
+      debtOutflow +
+      goalsOutflow;
 
     return {
       panel: {
@@ -37,25 +76,43 @@ export function usePlanningSnapshot() {
         freeBalance: totalMonthlyIncome - committedBalance,
         annualIncomeProjection: monthlyProjection(12),
       },
+
       budget: {
         variable: {
           planned: variablePlanned,
           used: variableUsed,
           remaining: variableRemaining,
-          percentUsed: variablePlanned > 0 ? Math.min((variableUsed / variablePlanned) * 100, 100) : 0,
+          percentUsed:
+            variablePlanned > 0
+              ? Math.min((variableUsed / variablePlanned) * 100, 100)
+              : 0,
         },
       },
     };
-  }, [totalMonthlyIncome, investments, debts, goals, categories, totalExpenses, monthlyProjection]);
+  }, [
+    totalMonthlyIncome,
+    monthlyProjection,
+    monthlyDebtOutflow,
+    monthlyGoalsOutflow,
+    monthlyInvestmentsOutflow,
+    totalExpenses,
+    categories,
+  ]);
 
-  // Marca quando snapshot está pronto
-  useEffect(() => {
-    if (snapshot) setSnapshotReady(true);
-  }, [snapshot]);
+  /* ============================================================
+     LOADING GLOBAL
+  ============================================================ */
 
-  const loading = loadingIncome || loadingGoals || loadingBudget || !snapshotReady;
+  const loading =
+    loadingIncome ||
+    loadingGoals ||
+    loadingBudget ||
+    snapshot === null;
 
-  // DEBUG
+  /* ============================================================
+     DEBUG CONTROLADO
+  ============================================================ */
+
   useEffect(() => {
     console.log("🟢 [PlanningSnapshot] snapshot:", snapshot);
     console.log("🟢 [PlanningSnapshot] loading:", loading);

@@ -16,6 +16,7 @@ import Section from "@/components/layout/Section";
 import SubscriptionCard from "@/components/cards/SubscriptionCard";
 import HomeFinanceCard from "@/components/home/HomeFinanceCard";
 import HomePlanningCard from "@/components/home/HomePlanningCard";
+import HomeSocialCard from "@/components/home/HomeSocialCard"; // <-- novo componente
 import { useSubscriptions } from "@/hooks/useSubscriptions";
 import Icon from "@/components/ui/Icon";
 import { supabase } from "@/lib/supabase";
@@ -58,18 +59,12 @@ const brandFont = Platform.select({
 
 export default function HomeScreen() {
   const router = useRouter();
-
-  const {
-    subscriptions,
-    loading,
-    monthlyTotal,
-    annualTotal,
-    upcomingRenewals,
-  } = useSubscriptions();
+  const { subscriptions, loading } = useSubscriptions();
 
   const [userName, setUserName] = useState<string | null>(null);
   const [greeting, setGreeting] = useState("Olá");
 
+  // Saudação
   useEffect(() => {
     const hour = new Date().getHours();
     if (hour < 12) setGreeting("Bom dia");
@@ -77,6 +72,7 @@ export default function HomeScreen() {
     else setGreeting("Boa noite");
   }, []);
 
+  // Carregar nome do usuário
   useEffect(() => {
     async function loadUser() {
       const { data } = await supabase.auth.getUser();
@@ -93,13 +89,13 @@ export default function HomeScreen() {
     loadUser();
   }, []);
 
+  // Carrossel de frases
   const carouselRef = useRef<FlatList<string>>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
 
   useEffect(() => {
     const interval = setInterval(() => {
-      const next =
-        currentIndex + 1 >= PHRASES.length ? 0 : currentIndex + 1;
+      const next = currentIndex + 1 >= PHRASES.length ? 0 : currentIndex + 1;
 
       carouselRef.current?.scrollToOffset({
         offset: next * (width - 40),
@@ -120,7 +116,7 @@ export default function HomeScreen() {
           paddingTop: 20,
           paddingBottom: 80,
           gap: 28,
-          backgroundColor: "#000000", // fundo preto
+          backgroundColor: "#000000",
         }}
       >
         {/* ================= HEADER ================= */}
@@ -162,32 +158,14 @@ export default function HomeScreen() {
           >
             <TouchableOpacity
               onPress={() => router.push("/menu")}
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: 16,
-                borderWidth: 1,
-                borderColor: "rgba(255,255,255,0.12)",
-                backgroundColor: "rgba(255,255,255,0.06)",
-                justifyContent: "center",
-                alignItems: "center",
-              }}
+              style={iconButton}
             >
               <Icon name="menu" size={16} color="#FFFFFF" />
             </TouchableOpacity>
 
             <TouchableOpacity
               onPress={() => router.push("/home/settings")}
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: 16,
-                borderWidth: 1,
-                borderColor: "rgba(255,255,255,0.12)",
-                backgroundColor: "rgba(255,255,255,0.06)",
-                justifyContent: "center",
-                alignItems: "center",
-              }}
+              style={iconButton}
             >
               <Icon name="settings-outline" size={16} color="#FFFFFF" />
             </TouchableOpacity>
@@ -196,7 +174,7 @@ export default function HomeScreen() {
 
         {/* ================= HERO ================= */}
         <View style={{ borderRadius: 26, overflow: "hidden" }}>
-          <BlurView intensity={28} tint="dark" style={{ flex: 1, padding: 20 }}>
+          <BlurView intensity={28} tint="dark" style={{ padding: 20 }}>
             <Text style={{ color: "#9CA3AF", fontSize: 13, marginBottom: 10 }}>
               Clareza financeira
             </Text>
@@ -211,11 +189,7 @@ export default function HomeScreen() {
               renderItem={({ item }) => (
                 <View style={{ width: width - 40 }}>
                   <Text
-                    style={{
-                      color: "#FFFFFF",
-                      fontSize: 22,
-                      fontWeight: "700",
-                    }}
+                    style={{ color: "#FFFFFF", fontSize: 22, fontWeight: "700" }}
                   >
                     {item}
                   </Text>
@@ -225,36 +199,14 @@ export default function HomeScreen() {
           </BlurView>
         </View>
 
-        {/* ================= CARDS FINANCEIRO & PLANNING ================= */}
+        {/* ================= CARDS ================= */}
         <View style={{ flexDirection: "row", gap: 14 }}>
           <HomeFinanceCard />
           <HomePlanningCard />
         </View>
 
-        {/* ================= PRÓXIMOS VENCIMENTOS ================= */}
-        <Section title="Próximos vencimentos">
-          {upcomingRenewals.length === 0 && !loading && (
-            <Text style={{ color: "#9CA3AF", fontSize: 14 }}>
-              Nenhuma cobrança prevista nos próximos 7 dias.
-            </Text>
-          )}
-
-          {upcomingRenewals.map((s) => (
-            <View
-              key={s.id}
-              style={{
-                paddingVertical: 10,
-                borderBottomWidth: 1,
-                borderBottomColor: "rgba(255,255,255,0.05)",
-              }}
-            >
-              <Text style={{ color: "white", fontSize: 15 }}>{s.service}</Text>
-              <Text style={{ color: "#9CA3AF", fontSize: 13 }}>
-                R$ {s.price.toFixed(2)} • {s.frequency} • vence em {s.next_billing}
-              </Text>
-            </View>
-          ))}
-        </Section>
+        {/* ================= HOME SOCIAL CARD ================= */}
+        <HomeSocialCard />
 
         {/* ================= ASSINATURAS ================= */}
         <Section title="Suas assinaturas">
@@ -282,12 +234,7 @@ export default function HomeScreen() {
                 }}
               >
                 <Text
-                  style={{
-                    color: "#6B7280",
-                    fontSize: 12,
-                    textTransform: "uppercase",
-                    marginBottom: 6,
-                  }}
+                  style={{ color: "#6B7280", fontSize: 12, marginBottom: 6 }}
                 >
                   {card.tag}
                 </Text>
@@ -311,23 +258,13 @@ export default function HomeScreen() {
   );
 }
 
-const cardStyle = {
-  flex: 1,
-  backgroundColor: "rgba(255,255,255,0.05)",
-  borderRadius: 18,
-  padding: 16,
+const iconButton = {
+  width: 32,
+  height: 32,
+  borderRadius: 16,
   borderWidth: 1,
-  borderColor: "rgba(255,255,255,0.08)",
-};
-
-const labelStyle = {
-  color: "#9CA3AF",
-  fontSize: 12,
-};
-
-const valueStyle = {
-  color: "white",
-  fontSize: 18,
-  fontWeight: "700" as const,
-  marginTop: 6,
+  borderColor: "rgba(255,255,255,0.12)",
+  backgroundColor: "rgba(255,255,255,0.06)",
+  justifyContent: "center",
+  alignItems: "center",
 };
