@@ -15,14 +15,18 @@ import { useFocusEffect, useRouter } from "expo-router";
 import Screen from "@/components/layout/Screen";
 import FinanceOverviewPanel from "@/components/app/finance/FinanceOverviewPanel";
 import MonthlyBudgetCard from "@/components/app/finance/MonthlyBudgetCard";
+import FinanceProOverlay from "@/components/finance/FinanceProOverlay";
 
 import { useFinanceSnapshot } from "@/hooks/useFinanceSnapshot";
 import { useBudget } from "@/context/BudgetContext";
 import { useSubscriptions } from "@/hooks/useSubscriptions";
+import { useUserPlan } from "@/context/UserPlanContext";
 
 export default function FinanceScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+
+  const { isPro } = useUserPlan();
 
   // FINANCE (painel superior)
   const { snapshot, loading, reload } = useFinanceSnapshot();
@@ -100,59 +104,66 @@ export default function FinanceScreen() {
     <Screen>
       <StatusBar barStyle="light-content" />
 
-      <ScrollView
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-        showsVerticalScrollIndicator={false}
-        scrollEventThrottle={16}
-        decelerationRate="fast"
-        contentContainerStyle={[
-          styles.scroll,
-          { paddingTop: insets.top + 16, flexGrow: 1 },
-        ]}
-      >
-        {/* HEADER */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Financeiro</Text>
-          <Text style={styles.headerSubtitle}>Visão consolidada</Text>
-        </View>
+      <View style={{ flex: 1, position: "relative" }}>
+        <ScrollView
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+          showsVerticalScrollIndicator={false}
+          scrollEventThrottle={16}
+          decelerationRate="fast"
+          contentContainerStyle={[
+            styles.scroll,
+            { paddingTop: insets.top + 16, flexGrow: 1 },
+          ]}
+        >
+          {/* HEADER */}
+          <View style={styles.header}>
+            <Text style={styles.headerTitle}>Financeiro</Text>
+            <Text style={styles.headerSubtitle}>Visão consolidada</Text>
+          </View>
 
-        {/* HERO */}
-        <View style={styles.heroCard}>
-          <View style={styles.heroGlow} />
-          <BlurView intensity={32} tint="dark" style={styles.heroContent}>
-            <Text style={styles.heroLabel}>Resumo do mês</Text>
-            <Text style={styles.heroTitle}>
-              Sua posição financeira atual
+          {/* HERO */}
+          <View style={styles.heroCard}>
+            <View style={styles.heroGlow} />
+            <BlurView intensity={32} tint="dark" style={styles.heroContent}>
+              <Text style={styles.heroLabel}>Resumo do mês</Text>
+              <Text style={styles.heroTitle}>
+                Sua posição financeira atual
+              </Text>
+            </BlurView>
+          </View>
+
+          {/* OVERVIEW */}
+          {!loading && snapshot && (
+            <FinanceOverviewPanel snapshot={snapshot} />
+          )}
+
+          {/* MICRO INSIGHT */}
+          <View style={styles.microInsight}>
+            <Text style={styles.microInsightText}>
+              Seus gastos estão dentro do planejado este mês.
             </Text>
-          </BlurView>
-        </View>
+          </View>
 
-        {/* OVERVIEW */}
-        {!loading && snapshot && (
-          <FinanceOverviewPanel snapshot={snapshot} />
-        )}
+          {/* BUDGET */}
+          {!budgetLoading && (
+            <TouchableOpacity
+              activeOpacity={0.9}
+              onPress={() => router.push("/finance/budget")}
+            >
+              <MonthlyBudgetCard snapshot={budgetSnapshot} />
+            </TouchableOpacity>
+          )}
 
-        {/* MICRO INSIGHT */}
-        <View style={styles.microInsight}>
-          <Text style={styles.microInsightText}>
-            Seus gastos estão dentro do planejado este mês.
-          </Text>
-        </View>
+          <View style={{ height: 120 }} />
+        </ScrollView>
 
-        {/* BUDGET */}
-        {!budgetLoading && (
-          <TouchableOpacity
-            activeOpacity={0.9}
-            onPress={() => router.push("/finance/budget")}
-          >
-            <MonthlyBudgetCard snapshot={budgetSnapshot} />
-          </TouchableOpacity>
-        )}
-
-        <View style={{ height: 120 }} />
-      </ScrollView>
+        {/* ===============================
+            PAYWALL PRO — SOBREPOSIÇÃO
+           =============================== */}
+        {!isPro && <FinanceProOverlay />}
+      </View>
     </Screen>
   );
 }

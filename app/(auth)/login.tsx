@@ -13,9 +13,19 @@ import { supabase } from "@/lib/supabase";
 import { authLogger } from "@/lib/authLogger";
 import { featureFlags } from "@/lib/featureFlags";
 import { Ionicons, AntDesign } from "@expo/vector-icons";
-import * as WebBrowser from "expo-web-browser";
 
-WebBrowser.maybeCompleteAuthSession();
+// --- Condicional para WebView / WebBrowser ---
+let WebView: any = null;
+let WebBrowser: any = { maybeCompleteAuthSession: () => {} };
+
+try {
+  WebBrowser = require("expo-web-browser");
+  WebView = require("react-native-webview").WebView;
+  WebBrowser.maybeCompleteAuthSession();
+} catch (e) {
+  // Ambiente Expo Go ou Web → ignora, não quebra
+  WebView = null;
+}
 
 const brandFont = Platform.select({
   ios: "SF Pro Display",
@@ -32,26 +42,25 @@ export default function LoginScreen() {
     null
   );
   const [error, setError] = useState<string | null>(null);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
 
   const isValid = useMemo(
-    () => email.includes("@") && password.length >= 6,
-    [email, password]
+    () => email.includes("@") && password.length >= 6 && (!WebView || captchaToken),
+    [email, password, captchaToken]
   );
 
-  /* -----------------------------------------------------
-     EMAIL / PASSWORD
-  ----------------------------------------------------- */
+  /* ---------------- Email / Password ---------------- */
   async function handleLogin() {
     if (!isValid || loading) return;
 
     setLoading(true);
     setError(null);
-
     authLogger.info("LOGIN", "password login started");
 
     const { error } = await supabase.auth.signInWithPassword({
       email: email.trim(),
       password,
+      options: WebView ? { captchaToken: captchaToken! } : undefined,
     });
 
     setLoading(false);
@@ -59,7 +68,6 @@ export default function LoginScreen() {
     if (error) {
       authLogger.warn("LOGIN", "login failed", error);
 
-      // 🔒 Email não confirmado
       if (
         error.message?.toLowerCase().includes("email") &&
         error.message?.toLowerCase().includes("confirm")
@@ -79,9 +87,7 @@ export default function LoginScreen() {
     router.replace("/home");
   }
 
-  /* -----------------------------------------------------
-     GOOGLE OAUTH — FLUXO FINAL
-  ----------------------------------------------------- */
+  /* ---------------- Google OAuth ---------------- */
   async function handleGoogleLogin() {
     if (socialLoading) return;
 
@@ -108,8 +114,6 @@ export default function LoginScreen() {
         data.url,
         "nouscore://auth-callback"
       );
-
-      authLogger.info("GOOGLE", "browser result", result.type);
 
       if (result.type !== "success" || !result.url) {
         setError("Login cancelado");
@@ -149,9 +153,7 @@ export default function LoginScreen() {
     }
   }
 
-  /* -----------------------------------------------------
-     APPLE SIGN IN — STUB
-  ----------------------------------------------------- */
+  /* ---------------- Apple Sign In ---------------- */
   function handleApplePress() {
     if (!featureFlags.appleSignInEnabled) {
       setError("Apple Sign In estará disponível em breve.");
@@ -205,7 +207,35 @@ export default function LoginScreen() {
           />
         </View>
 
-        {/* 🔐 Esqueci minha senha */}
+        {/* Turnstile WebView só aparece no build nativo */}
+        {WebView && (
+          <View style={styles.captchaBlock}>
+            <WebView
+              originWhitelist={["*"]}
+              source={{
+                html: `
+                  <html>
+                    <head>
+                      <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+                    </head>
+                    <body>
+                      <div class="cf-turnstile" data-sitekey="YOUR_TURNSTILE_SITE_KEY" data-callback="onSuccess"></div>
+                      <script>
+                        function onSuccess(token) {
+                          window.ReactNativeWebView.postMessage(token);
+                        }
+                      </script>
+                    </body>
+                  </html>
+                `,
+              }}
+              onMessage={(event) => setCaptchaToken(event.nativeEvent.data)}
+              javaScriptEnabled
+              style={{ flex: 1, height: 90 }}
+            />
+          </View>
+        )}
+
         <TouchableOpacity
           onPress={() => router.push("/(auth)/forgot")}
           style={styles.forgot}
@@ -214,10 +244,7 @@ export default function LoginScreen() {
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[
-            styles.primaryButton,
-            !isValid && styles.primaryButtonDisabled,
-          ]}
+          style={[styles.primaryButton, !isValid && styles.primaryButtonDisabled]}
           disabled={!isValid || loading}
           onPress={handleLogin}
           activeOpacity={0.85}
@@ -242,10 +269,7 @@ export default function LoginScreen() {
       {/* Social */}
       <View style={styles.social}>
         <TouchableOpacity
-          style={[
-            styles.socialButton,
-            !featureFlags.appleSignInEnabled && { opacity: 0.4 },
-          ]}
+          style={[styles.socialButton, !featureFlags.appleSignInEnabled && { opacity: 0.4 }]}
           onPress={handleApplePress}
         >
           <Ionicons name="logo-apple" size={18} color="#fff" />
@@ -282,10 +306,7 @@ export default function LoginScreen() {
             Termos
           </Text>{" "}
           e{" "}
-          <Text
-            style={styles.legalLink}
-            onPress={() => router.push("/privacy")}
-          >
+          <Text style={styles.legalLink} onPress={() => router.push("/privacy")}>
             Privacidade
           </Text>
           .
@@ -318,10 +339,7 @@ const styles = StyleSheet.create({
   },
 
   forgot: { alignSelf: "flex-end", marginBottom: 12 },
-  forgotText: {
-    color: "rgba(255,255,255,0.5)",
-    fontSize: 13,
-  },
+  forgotText: { color: "rgba(255,255,255,0.5)", fontSize: 13 },
 
   primaryButton: {
     height: 52,
@@ -366,4 +384,6 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   legalLink: { color: "rgba(255,255,255,0.75)", textDecorationLine: "underline" },
+
+  captchaBlock: { marginVertical: 12, alignItems: "center" },
 });

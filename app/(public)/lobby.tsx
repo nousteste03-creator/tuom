@@ -5,8 +5,10 @@ import {
   TouchableOpacity,
   Dimensions,
   Platform,
+  Animated,
+  Easing,
 } from "react-native";
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { Video, ResizeMode } from "expo-av";
 import { useRouter } from "expo-router";
 import { BlurView } from "expo-blur";
@@ -19,8 +21,50 @@ export default function LobbyScreen() {
   const videoRef = useRef<Video>(null);
   const [videoEnded, setVideoEnded] = useState(false);
 
+  // ✅ animações
+  const titleOpacity = useRef(new Animated.Value(0)).current;
+  const titleY = useRef(new Animated.Value(10)).current;
+
+  const subOpacity = useRef(new Animated.Value(0)).current;
+  const subY = useRef(new Animated.Value(10)).current;
+
+  useEffect(() => {
+    Animated.sequence([
+      Animated.parallel([
+        Animated.timing(titleOpacity, {
+          toValue: 1,
+          duration: 520,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(titleY, {
+          toValue: 0,
+          duration: 520,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.parallel([
+        Animated.timing(subOpacity, {
+          toValue: 1,
+          duration: 520,
+          delay: 40,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(subY, {
+          toValue: 0,
+          duration: 520,
+          delay: 40,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]),
+    ]).start();
+  }, [titleOpacity, titleY, subOpacity, subY]);
+
   const handlePlaybackStatusUpdate = (status: any) => {
-    if (!status.isLoaded) return;
+    if (!status?.isLoaded) return;
 
     if (status.didJustFinish && !videoEnded) {
       setVideoEnded(true);
@@ -64,39 +108,69 @@ export default function LobbyScreen() {
 
       {/* Conteúdo */}
       <View style={styles.content}>
-        {/* HEADER */}
+        {/* HEADER — integrado: watermark + headline + elemento */}
         <View style={styles.header}>
-          <Text style={styles.brand}>TUÖM</Text>
-          <Text style={styles.subtitle}>
-            Organize sua vida financeira.{"\n"}
-            Assinaturas, metas e insights únicos.
+          {/* watermark gigante */}
+          <Text style={styles.brandWatermark} numberOfLines={1}>
+            TUÖM
           </Text>
+
+          {/* headline animado (com personalidade) */}
+          <Animated.View
+            style={{
+              opacity: titleOpacity,
+              transform: [{ translateY: titleY }],
+            }}
+          >
+            {/* ✅ aqui é o “headline” branco — sem cara de system */}
+            <Text style={styles.headline}>
+              CLAREZA{"\n"}FINANCEIRA
+            </Text>
+
+            {/* ✅ elemento simples (linha) pra integrar e dar assinatura */}
+            <View style={styles.accentLine} />
+          </Animated.View>
+
+          {/* subtítulo animado (mantém cinza) */}
+          <Animated.View
+            style={{
+              opacity: subOpacity,
+              transform: [{ translateY: subY }],
+            }}
+          >
+            <Text style={styles.subtitle}>
+              Assinaturas, metas e insights — tudo num lugar só.
+            </Text>
+          </Animated.View>
         </View>
 
-        {/* FOOTER */}
+        {/* FOOTER — 2 CARDS */}
         <View style={styles.footer}>
-          <TouchableOpacity
-            style={styles.primaryButton}
-            onPress={() => router.push("/(auth)/login")}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.primaryText}>Entrar</Text>
-          </TouchableOpacity>
+          <View style={styles.cardsRow}>
+            {/* LOGIN — BLACK */}
+            <TouchableOpacity
+              activeOpacity={0.9}
+              style={[styles.cardBase, styles.cardBlack]}
+              onPress={() => router.push("/(auth)/login")}
+            >
+              <Text style={styles.cardTitleBlack}>Log in</Text>
+              <Text style={styles.cardHintBlack}>Entrar</Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.secondaryButton}
-            onPress={() => router.push("/(auth)/register")}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.secondaryText}>Criar conta</Text>
-          </TouchableOpacity>
+            {/* REGISTER — WHITE */}
+            <TouchableOpacity
+              activeOpacity={0.9}
+              style={[styles.cardBase, styles.cardWhite]}
+              onPress={() => router.push("/(auth)/register")}
+            >
+              <Text style={styles.cardTitleWhite}>Sign up</Text>
+              <Text style={styles.cardHintWhite}>Criar conta</Text>
+            </TouchableOpacity>
+          </View>
 
           <Text style={styles.legal}>
             Ao continuar, você concorda com os{" "}
-            <Text
-              style={styles.legalLink}
-              onPress={() => router.push("/terms")}
-            >
+            <Text style={styles.legalLink} onPress={() => router.push("/terms")}>
               Termos
             </Text>{" "}
             e a{" "}
@@ -114,11 +188,11 @@ export default function LobbyScreen() {
   );
 }
 
+const GAP = 14;
+const CARD_W = (width - 24 * 2 - GAP) / 2;
+
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: "#000",
-  },
+  root: { flex: 1, backgroundColor: "#000" },
 
   overlay: {
     ...StyleSheet.absoluteFillObject,
@@ -133,63 +207,91 @@ const styles = StyleSheet.create({
   },
 
   header: {
-    maxWidth: width * 0.9,
+    maxWidth: width * 0.92,
+    paddingTop: 8,
   },
 
-  brand: {
+  // watermark TUÖM
+  brandWatermark: {
     fontFamily: "Agrandir-Regular",
-    fontSize: 34,
+    fontSize: 92,
+    lineHeight: 92,
+    fontWeight: "900",
+    letterSpacing: -2.4,
+    color: "rgba(255,255,255,0.14)",
+    textTransform: "uppercase",
+  },
+
+  // ✅ headline branco: estilo Wise (forte, editorial)
+  headline: {
+    marginTop: 10,
+    fontFamily: "Agrandir-Regular",
+    fontSize: 44,
+    lineHeight: 44,
+    fontWeight: "900",
+    letterSpacing: -0.8,
     color: "#fff",
-    marginBottom: 18,
-    letterSpacing: 1.4,
+    textTransform: "uppercase",
+  },
+
+  // ✅ elemento simples, assinatura (sem geometria aleatória)
+  accentLine: {
+    marginTop: 14,
+    width: 56,
+    height: 3,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.85)",
   },
 
   subtitle: {
+    marginTop: 14,
     fontFamily: "Agrandir-Regular",
     fontSize: 16,
-    lineHeight: 24,
-    color: "rgba(255,255,255,0.75)",
-  },
-
-  footer: {
-    paddingBottom: 28,
-    gap: 14,
-  },
-
-  primaryButton: {
-    height: 54,
-    borderRadius: 16,
-    backgroundColor: "rgba(255,255,255,0.12)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.22)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  primaryText: {
-    color: "#fff",
-    fontSize: 16,
+    lineHeight: 22,
     fontWeight: "600",
+    letterSpacing: 0.2,
+    color: "rgba(255,255,255,0.72)",
   },
 
-  secondaryButton: {
-    height: 54,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.35)",
-    backgroundColor: "rgba(255,255,255,0.08)",
-    alignItems: "center",
+  footer: { paddingBottom: 28, gap: 18 },
+
+  cardsRow: { flexDirection: "row", gap: GAP },
+
+  cardBase: {
+    width: CARD_W,
+    height: 88,
+    borderRadius: 18,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
     justifyContent: "center",
+    overflow: "hidden",
   },
 
-  secondaryText: {
-    color: "#fff",
-    fontSize: 16,
+  cardBlack: {
+    backgroundColor: "#000",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.18)",
+  },
+
+  cardTitleBlack: { color: "#fff", fontSize: 17, fontWeight: "800" },
+  cardHintBlack: {
+    marginTop: 6,
+    color: "rgba(255,255,255,0.62)",
+    fontSize: 12,
+    fontWeight: "500",
+  },
+
+  cardWhite: { backgroundColor: "#fff" },
+  cardTitleWhite: { color: "#000", fontSize: 17, fontWeight: "800" },
+  cardHintWhite: {
+    marginTop: 6,
+    color: "rgba(0,0,0,0.6)",
+    fontSize: 12,
     fontWeight: "500",
   },
 
   legal: {
-    marginTop: 12,
+    marginTop: 2,
     fontSize: 12,
     lineHeight: 16,
     color: "rgba(255,255,255,0.5)",
