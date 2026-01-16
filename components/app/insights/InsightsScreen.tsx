@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo } from "react";
 import {
   View,
   Text,
@@ -14,30 +14,44 @@ import { router } from "expo-router";
 import { useInsights } from "@/hooks/useInsights";
 
 /* ---------------------------------------------------------
-   Helper — formatar "1h atrás"
+   Helper — formatar tempo
 ----------------------------------------------------------*/
 function formatTimeAgo(publishedAt?: string) {
   if (!publishedAt) return "";
   const t = new Date(publishedAt).getTime();
   if (Number.isNaN(t)) return "";
   const diffMin = Math.floor((Date.now() - t) / 60000);
-  if (diffMin < 60) return `${diffMin}min atrás`;
-  const hours = Math.floor(diffMin / 60);
-  const days = Math.floor(hours / 24);
-  if (days >= 1) return `${days}d atrás`;
-  const rest = diffMin % 60;
-  return rest === 0 ? `${hours}h atrás` : `${hours}h${rest}min atrás`;
+  if (diffMin < 1) return "agora";
+  if (diffMin < 60) return `${diffMin}min`;
+  const h = Math.floor(diffMin / 60);
+  const d = Math.floor(h / 24);
+  if (d >= 1) return `${d}d`;
+  return `${h}h`;
 }
 
 export default function InsightsScreen() {
   const insets = useSafeAreaInsets();
-  const { loading, insightOfDay, today, trends, events } = useInsights();
+  const { loading, insightOfDay, today, highlights, trends } = useInsights();
 
-  // ESTADO DE EXPANSÃO DA TIMELINE
-  const [expanded, setExpanded] = useState(false);
+  const headerSubtitle = useMemo(
+    () => "Atualizações globais • Curadoria TUÖM",
+    []
+  );
 
-  // mostra 8 notícias se fechado / tudo se aberto
-  const visibleEvents = expanded ? events : events.slice(0, 8);
+  function openNews(item: any) {
+    router.push({
+      pathname: "/insights/news/[id]",
+      params: {
+        id: encodeURIComponent(item.id),
+        title: item.title,
+        source: item.source,
+        imageUrl: item.imageUrl,
+        url: item.url,
+        publishedAt: item.publishedAt,
+        description: item.description,
+      },
+    });
+  }
 
   return (
     <View style={styles.container}>
@@ -47,81 +61,57 @@ export default function InsightsScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.scroll,
-          { paddingTop: insets.top + 16 },
+          { paddingTop: insets.top + 14 },
         ]}
       >
         {/* HEADER */}
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Insights</Text>
-          <Text style={styles.headerSubtitle}>
-            Continue lendo insights que realmente importam.
-          </Text>
+          <Text style={styles.headerSubtitle}>{headerSubtitle}</Text>
         </View>
 
-        {/* HERO */}
-        <View style={styles.heroCard}>
-          <View style={styles.heroOverlay} />
-          <View style={styles.heroContent}>
-            <Text style={styles.heroLabel}>Insight do dia</Text>
-            <Text style={styles.heroTitle}>{insightOfDay.title}</Text>
-            <Text style={styles.heroBody}>{insightOfDay.subtitle}</Text>
-          </View>
+        {/* INSIGHT DO DIA */}
+        <View style={styles.insightCard}>
+          <Text style={styles.insightLabel}>Insight do dia</Text>
+          <Text style={styles.insightTitle}>{insightOfDay.title}</Text>
+          <Text style={styles.insightBody}>{insightOfDay.subtitle}</Text>
         </View>
 
-        {/* HOJE NO MUNDO */}
+        {/* HOJE — leitura rápida */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Hoje no mundo</Text>
+          <Text style={styles.sectionTitle}>Hoje</Text>
 
           {loading && (
-            <Text style={styles.loadingText}>Carregando notícias...</Text>
+            <Text style={styles.loadingText}>Carregando…</Text>
           )}
 
-          {!loading && today && today.length > 0 && (
+          {!loading && today.length === 0 && (
+            <Text style={styles.loadingText}>
+              Nenhuma atualização agora.
+            </Text>
+          )}
+
+          {!loading && today.length > 0 && (
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.todayCarousel}
+              contentContainerStyle={styles.row}
             >
               {today.map((item) => (
                 <TouchableOpacity
                   key={item.id}
                   activeOpacity={0.9}
                   style={styles.todayCard}
-                  onPress={() =>
-                    router.push({
-                      pathname: "/insights/news/[id]",
-                      params: {
-                        id: encodeURIComponent(item.id),
-                        title: item.title,
-                        source: item.source,
-                        imageUrl: item.imageUrl,
-                        url: item.url,
-                        publishedAt: item.publishedAt,
-                        description: item.description,
-                      },
-                    })
-                  }
+                  onPress={() => openNews(item)}
                 >
-                  {item.imageUrl ? (
-                    <Image
-                      source={{ uri: item.imageUrl }}
-                      style={styles.todayImage}
-                    />
-                  ) : (
-                    <View style={styles.noImage} />
-                  )}
-
-                  <View style={styles.todayMetaRow}>
-                    <Text style={styles.todaySource}>
-                      {item.source || "TUÖM Insights"}
-                    </Text>
-                    <Text style={styles.todayTime}>
-                      {formatTimeAgo(item.publishedAt)}
-                    </Text>
-                  </View>
-
-                  <Text style={styles.todayTitle} numberOfLines={3}>
+                  <Text style={styles.todayText} numberOfLines={3}>
                     {item.title}
+                  </Text>
+
+                  <Text style={styles.todayMeta}>
+                    {(item.source || "TUÖM") +
+                      " • " +
+                      formatTimeAgo(item.publishedAt)}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -129,301 +119,200 @@ export default function InsightsScreen() {
           )}
         </View>
 
-        {/* TENDÊNCIAS */}
+        {/* DESTAQUES */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Tendências que importam</Text>
+          <Text style={styles.sectionTitle}>Destaques</Text>
 
-          <View style={styles.trendsGrid}>
-            {trends?.map((trend, index) => (
-              <TouchableOpacity
-                key={index}
-                activeOpacity={0.9}
-                style={styles.trendCard}
-                onPress={() =>
-                  router.push({
-                    pathname: "/insights/trend/[category]",
-                    params: {
-                      category: encodeURIComponent(trend.category),
-                    },
-                  })
-                }
-              >
-                <Text style={styles.trendTitle}>{trend.category}</Text>
-
-                <Text style={styles.trendSubtitle}>
-                  {trend.articles?.length > 0
-                    ? `${trend.articles.length} artigos`
-                    : "Analisando..."}
-                </Text>
-
-                <View style={styles.trendDot} />
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        {/* LINHA DO TEMPO */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Linha do tempo do dia</Text>
-          <Text style={styles.timelineSubtitle}>
-            Os eventos mais importantes acontecendo agora.
-          </Text>
-
-          {visibleEvents.map((ev) => (
+          {highlights.map((item) => (
             <TouchableOpacity
-              key={ev.id}
+              key={item.id}
               activeOpacity={0.9}
-              style={styles.timelineCard}
-              onPress={() =>
-                router.push({
-                  pathname: "/insights/news/[id]",
-                  params: {
-                    id: encodeURIComponent(ev.id),
-                    title: ev.title,
-                    source: ev.source,
-                    imageUrl: ev.imageUrl,
-                    url: ev.url,
-                    publishedAt: ev.publishedAt,
-                    description: ev.description,
-                  },
-                })
-              }
+              style={styles.highlightCard}
+              onPress={() => openNews(item)}
             >
-              {ev.imageUrl ? (
+              {item.imageUrl ? (
                 <Image
-                  source={{ uri: ev.imageUrl }}
-                  style={styles.timelineImage}
+                  source={{ uri: item.imageUrl }}
+                  style={styles.highlightImage}
                 />
-              ) : (
-                <View style={styles.timelineNoImage} />
-              )}
+              ) : null}
 
-              <View style={styles.timelineRight}>
-                <Text style={styles.timelineTitle} numberOfLines={2}>
-                  {ev.title}
+              <View style={styles.highlightBody}>
+                <Text style={styles.highlightTitle} numberOfLines={2}>
+                  {item.title}
                 </Text>
 
-                <View style={styles.timelineMetaRow}>
-                  <Text style={styles.timelineSource}>
-                    {ev.source || "TUÖM Insights"}
-                  </Text>
-                  <Text style={styles.timelineTime}>
-                    {formatTimeAgo(ev.publishedAt)}
-                  </Text>
-                </View>
+                <Text style={styles.highlightMeta}>
+                  {(item.source || "TUÖM") +
+                    " • " +
+                    formatTimeAgo(item.publishedAt)}
+                </Text>
               </View>
             </TouchableOpacity>
           ))}
-
-          {/* BOTÃO VER MAIS / VER MENOS */}
-          {events.length > 8 && (
-            <TouchableOpacity
-              activeOpacity={0.8}
-              style={styles.moreButton}
-              onPress={() => setExpanded((v) => !v)}
-            >
-              <Text style={styles.moreButtonText}>
-                {expanded ? "Ver menos" : "Ver mais"}
-              </Text>
-            </TouchableOpacity>
-          )}
         </View>
 
-        <View style={{ height: 50 }} />
+        {/* TENDÊNCIAS */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Tendências</Text>
+
+          {trends.map((group, idx) => (
+            <View key={group.category + idx} style={styles.trendBlock}>
+              <Text style={styles.trendHeader}>{group.category}</Text>
+
+              {group.articles.slice(0, 3).map((item) => (
+                <TouchableOpacity
+                  key={item.id}
+                  activeOpacity={0.85}
+                  style={styles.trendItem}
+                  onPress={() => openNews(item)}
+                >
+                  <Text style={styles.trendItemText} numberOfLines={2}>
+                    {item.title}
+                  </Text>
+                  <Text style={styles.trendItemMeta}>
+                    {formatTimeAgo(item.publishedAt)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          ))}
+        </View>
+
+        <View style={{ height: 48 }} />
       </ScrollView>
     </View>
   );
 }
 
 /* -------------------------------------------------
-   ESTILOS
+   ESTILOS — Apple News / iOS glass
 --------------------------------------------------- */
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#050507" },
+  container: { flex: 1, backgroundColor: "#0B0B0D" },
   scroll: { paddingHorizontal: 20, paddingBottom: 40 },
 
-  header: { alignItems: "center", marginBottom: 22 },
+  header: { alignItems: "center", marginBottom: 20 },
   headerTitle: { fontSize: 28, color: "#FFF", fontWeight: "700" },
   headerSubtitle: {
-    fontSize: 14,
-    color: "rgba(255,255,255,0.6)",
-    marginTop: 4,
-    textAlign: "center",
+    fontSize: 13,
+    color: "rgba(255,255,255,0.55)",
+    marginTop: 6,
   },
 
-  /* HERO */
-  heroCard: {
-    height: 160,
-    borderRadius: 26,
-    overflow: "hidden",
+  loadingText: {
+    color: "rgba(255,255,255,0.55)",
+    fontSize: 13,
+  },
+
+  /* INSIGHT */
+  insightCard: {
+    borderRadius: 22,
+    padding: 18,
     backgroundColor: "rgba(255,255,255,0.06)",
-    marginBottom: 28,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
+    borderColor: "rgba(255,255,255,0.10)",
+    marginBottom: 28,
   },
-  heroOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(5,5,7,0.55)",
+  insightLabel: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.55)",
+    marginBottom: 6,
   },
-  heroContent: { padding: 18 },
-  heroLabel: { fontSize: 12, color: "rgba(255,255,255,0.6)" },
-  heroTitle: { color: "#FFF", fontSize: 18, fontWeight: "600", marginTop: 6 },
-  heroBody: {
+  insightTitle: {
+    fontSize: 17,
+    fontWeight: "600",
+    color: "#FFF",
+  },
+  insightBody: {
     fontSize: 14,
     color: "rgba(255,255,255,0.75)",
-    marginTop: 4,
+    marginTop: 6,
+    lineHeight: 19,
   },
 
-  /* HOJE NO MUNDO */
-  section: { marginBottom: 28 },
+  section: { marginBottom: 30 },
   sectionTitle: {
     fontSize: 18,
     fontWeight: "600",
     color: "#FFF",
-    marginBottom: 12,
-  },
-  loadingText: {
-    color: "rgba(255,255,255,0.6)",
-    fontSize: 13,
-    marginBottom: 12,
+    marginBottom: 14,
   },
 
-  todayCarousel: { paddingRight: 4 },
+  /* HOJE */
+  row: { paddingRight: 8 },
   todayCard: {
-    width: 260,
+    width: 220,
     marginRight: 14,
-    padding: 10,
+    padding: 14,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  todayText: {
+    color: "#FFF",
+    fontSize: 14,
+    fontWeight: "500",
+    lineHeight: 18,
+  },
+  todayMeta: {
+    marginTop: 10,
+    fontSize: 12,
+    color: "rgba(255,255,255,0.5)",
+  },
+
+  /* DESTAQUES */
+  highlightCard: {
+    marginBottom: 14,
     borderRadius: 22,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
-    backgroundColor: "rgba(255,255,255,0.04)",
-  },
-  todayImage: {
-    width: "100%",
-    height: 140,
-    borderRadius: 18,
-    marginBottom: 8,
-  },
-  noImage: {
-    width: "100%",
-    height: 140,
-    borderRadius: 18,
-    backgroundColor: "rgba(255,255,255,0.06)",
-    marginBottom: 8,
-  },
-  todayMetaRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 4,
-  },
-  todaySource: {
-    fontSize: 12,
-    color: "rgba(255,255,255,0.6)",
-  },
-  todayTime: {
-    fontSize: 11,
-    color: "rgba(255,255,255,0.45)",
-  },
-  todayTitle: {
-    fontSize: 14,
-    color: "#FFF",
-    fontWeight: "500",
-  },
-
-  /* TENDÊNCIAS */
-  trendsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
-  },
-  trendCard: {
-    flexBasis: "48%",
-    padding: 16,
-    borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.03)",
+    overflow: "hidden",
+    backgroundColor: "rgba(255,255,255,0.035)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.08)",
   },
-  trendTitle: {
+  highlightImage: {
+    width: "100%",
+    height: 160,
+  },
+  highlightBody: {
+    padding: 14,
+  },
+  highlightTitle: {
     fontSize: 15,
-    color: "#FFF",
     fontWeight: "600",
-  },
-  trendSubtitle: {
-    fontSize: 13,
-    marginTop: 4,
-    color: "rgba(255,255,255,0.6)",
-  },
-  trendDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: "rgba(255,255,255,0.25)",
-    marginTop: 10,
-  },
-
-  /* TIMELINE */
-  timelineSubtitle: {
-    color: "rgba(255,255,255,0.6)",
-    fontSize: 13,
-    marginBottom: 10,
-  },
-  timelineCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 10,
-    borderRadius: 18,
-    backgroundColor: "rgba(255,255,255,0.03)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-    marginBottom: 10,
-  },
-  timelineImage: {
-    width: 60,
-    height: 60,
-    borderRadius: 16,
-    marginRight: 10,
-  },
-  timelineNoImage: {
-    width: 60,
-    height: 60,
-    borderRadius: 16,
-    marginRight: 10,
-    backgroundColor: "rgba(255,255,255,0.06)",
-  },
-  timelineRight: { flex: 1 },
-  timelineTitle: {
     color: "#FFF",
-    fontSize: 14,
-    fontWeight: "500",
-    marginBottom: 4,
+    lineHeight: 20,
   },
-  timelineMetaRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  timelineSource: {
+  highlightMeta: {
+    marginTop: 8,
     fontSize: 12,
-    color: "rgba(255,255,255,0.6)",
-  },
-  timelineTime: {
-    fontSize: 11,
-    color: "rgba(255,255,255,0.45)",
+    color: "rgba(255,255,255,0.55)",
   },
 
-  moreButton: {
-    paddingVertical: 12,
-    alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.04)",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
-    marginTop: 10,
+  /* TRENDS */
+  trendBlock: {
+    marginBottom: 18,
   },
-  moreButtonText: {
-    color: "#FFF",
+  trendHeader: {
     fontSize: 15,
-    fontWeight: "500",
+    fontWeight: "600",
+    color: "#FFF",
+    marginBottom: 10,
+  },
+  trendItem: {
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.08)",
+  },
+  trendItemText: {
+    fontSize: 14,
+    color: "#FFF",
+    lineHeight: 18,
+  },
+  trendItemMeta: {
+    fontSize: 12,
+    marginTop: 4,
+    color: "rgba(255,255,255,0.45)",
   },
 });
