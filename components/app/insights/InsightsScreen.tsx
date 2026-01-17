@@ -1,4 +1,5 @@
-import React, { useMemo } from "react";
+// components/app/insights/InsightsScreen.tsx
+import React, { useMemo, useCallback } from "react";
 import {
   View,
   Text,
@@ -11,7 +12,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 
-import { useInsights } from "@/hooks/useInsights";
+import { useInsights, InsightItem } from "@/hooks/useInsights";
 
 /* ---------------------------------------------------------
    Helper — formatar tempo
@@ -29,29 +30,70 @@ function formatTimeAgo(publishedAt?: string) {
   return `${h}h`;
 }
 
+/* ---------------------------------------------------------
+   Componente principal
+----------------------------------------------------------*/
 export default function InsightsScreen() {
   const insets = useSafeAreaInsets();
-  const { loading, insightOfDay, today, highlights, trends } = useInsights();
+
+  const {
+    loading,
+    insightOfDay,
+    today,
+    highlights,
+    trends,
+    error,
+  } = useInsights();
+
+  const isEmpty = !loading && today.length === 0 && highlights.length === 0;
 
   const headerSubtitle = useMemo(
     () => "Atualizações globais • Curadoria TUÖM",
     []
   );
 
-  function openNews(item: any) {
+  /* ---------------------------------------------------------
+     Abrir notícia
+  ----------------------------------------------------------*/
+  const openNews = useCallback((item: InsightItem) => {
     router.push({
       pathname: "/insights/news/[id]",
       params: {
         id: encodeURIComponent(item.id),
         title: item.title,
         source: item.source,
-        imageUrl: item.imageUrl,
-        url: item.url,
         publishedAt: item.publishedAt,
-        description: item.description,
+        description: item.subtitle || item.description || "",
       },
     });
-  }
+  }, []);
+
+  /* ---------------------------------------------------------
+     Render do card (SEM key aqui)
+  ----------------------------------------------------------*/
+  const renderInsightCard = (item: InsightItem) => (
+    <TouchableOpacity
+      activeOpacity={0.9}
+      style={styles.highlightCard}
+      onPress={() => openNews(item)}
+    >
+      {item.imageUrl ? (
+        <Image source={{ uri: item.imageUrl }} style={styles.highlightImage} />
+      ) : null}
+
+      <View style={styles.highlightBody}>
+        <Text style={styles.highlightTitle} numberOfLines={2}>
+          {item.title}
+        </Text>
+
+        <Text style={styles.highlightMeta}>
+          {(item.source || "TUÖM") +
+            " • " +
+            formatTimeAgo(item.publishedAt)}
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
 
   return (
     <View style={styles.container}>
@@ -70,114 +112,64 @@ export default function InsightsScreen() {
           <Text style={styles.headerSubtitle}>{headerSubtitle}</Text>
         </View>
 
-        {/* INSIGHT DO DIA */}
-        <View style={styles.insightCard}>
-          <Text style={styles.insightLabel}>Insight do dia</Text>
-          <Text style={styles.insightTitle}>{insightOfDay.title}</Text>
-          <Text style={styles.insightBody}>{insightOfDay.subtitle}</Text>
-        </View>
+        {/* HERO */}
+        {insightOfDay && (
+          <View style={styles.insightCard}>
+            <Text style={styles.insightLabel}>Destaque do dia</Text>
+            <Text style={styles.insightTitle}>{insightOfDay.title}</Text>
+            <Text style={styles.insightBody}>{insightOfDay.subtitle}</Text>
+          </View>
+        )}
 
-        {/* HOJE — leitura rápida */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Hoje</Text>
+        {/* LOADING / EMPTY */}
+        {loading && (
+          <Text style={styles.loadingText}>Carregando insights…</Text>
+        )}
+        {!loading && isEmpty && (
+          <Text style={styles.loadingText}>
+            Nenhuma atualização disponível.
+          </Text>
+        )}
+        {error && (
+          <Text style={styles.loadingText}>Erro: {error}</Text>
+        )}
 
-          {loading && (
-            <Text style={styles.loadingText}>Carregando…</Text>
-          )}
-
-          {!loading && today.length === 0 && (
-            <Text style={styles.loadingText}>
-              Nenhuma atualização agora.
-            </Text>
-          )}
-
-          {!loading && today.length > 0 && (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.row}
-            >
-              {today.map((item) => (
-                <TouchableOpacity
-                  key={item.id}
-                  activeOpacity={0.9}
-                  style={styles.todayCard}
-                  onPress={() => openNews(item)}
-                >
-                  <Text style={styles.todayText} numberOfLines={3}>
-                    {item.title}
-                  </Text>
-
-                  <Text style={styles.todayMeta}>
-                    {(item.source || "TUÖM") +
-                      " • " +
-                      formatTimeAgo(item.publishedAt)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          )}
-        </View>
+        {/* HOJE */}
+        {!loading && today.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Hoje</Text>
+            {today.map((item) => (
+              <View key={`today-${item.id}`}>
+                {renderInsightCard(item)}
+              </View>
+            ))}
+          </View>
+        )}
 
         {/* DESTAQUES */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Destaques</Text>
-
-          {highlights.map((item) => (
-            <TouchableOpacity
-              key={item.id}
-              activeOpacity={0.9}
-              style={styles.highlightCard}
-              onPress={() => openNews(item)}
-            >
-              {item.imageUrl ? (
-                <Image
-                  source={{ uri: item.imageUrl }}
-                  style={styles.highlightImage}
-                />
-              ) : null}
-
-              <View style={styles.highlightBody}>
-                <Text style={styles.highlightTitle} numberOfLines={2}>
-                  {item.title}
-                </Text>
-
-                <Text style={styles.highlightMeta}>
-                  {(item.source || "TUÖM") +
-                    " • " +
-                    formatTimeAgo(item.publishedAt)}
-                </Text>
+        {!loading && highlights.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Destaques</Text>
+            {highlights.map((item) => (
+              <View key={`highlight-${item.id}`}>
+                {renderInsightCard(item)}
               </View>
-            </TouchableOpacity>
-          ))}
-        </View>
+            ))}
+          </View>
+        )}
 
-        {/* TENDÊNCIAS */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Tendências</Text>
-
-          {trends.map((group, idx) => (
-            <View key={group.category + idx} style={styles.trendBlock}>
-              <Text style={styles.trendHeader}>{group.category}</Text>
-
-              {group.articles.slice(0, 3).map((item) => (
-                <TouchableOpacity
-                  key={item.id}
-                  activeOpacity={0.85}
-                  style={styles.trendItem}
-                  onPress={() => openNews(item)}
-                >
-                  <Text style={styles.trendItemText} numberOfLines={2}>
-                    {item.title}
-                  </Text>
-                  <Text style={styles.trendItemMeta}>
-                    {formatTimeAgo(item.publishedAt)}
-                  </Text>
-                </TouchableOpacity>
+        {/* TRENDS / CATEGORIAS */}
+        {!loading &&
+          trends.map((group) => (
+            <View key={`trend-${group.category}`} style={styles.section}>
+              <Text style={styles.sectionTitle}>{group.category}</Text>
+              {group.articles.map((item) => (
+                <View key={`trend-${group.category}-${item.id}`}>
+                  {renderInsightCard(item)}
+                </View>
               ))}
             </View>
           ))}
-        </View>
 
         <View style={{ height: 48 }} />
       </ScrollView>
@@ -203,9 +195,10 @@ const styles = StyleSheet.create({
   loadingText: {
     color: "rgba(255,255,255,0.55)",
     fontSize: 13,
+    textAlign: "center",
+    marginVertical: 12,
   },
 
-  /* INSIGHT */
   insightCard: {
     borderRadius: 22,
     padding: 18,
@@ -239,30 +232,6 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
 
-  /* HOJE */
-  row: { paddingRight: 8 },
-  todayCard: {
-    width: 220,
-    marginRight: 14,
-    padding: 14,
-    borderRadius: 18,
-    backgroundColor: "rgba(255,255,255,0.04)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-  },
-  todayText: {
-    color: "#FFF",
-    fontSize: 14,
-    fontWeight: "500",
-    lineHeight: 18,
-  },
-  todayMeta: {
-    marginTop: 10,
-    fontSize: 12,
-    color: "rgba(255,255,255,0.5)",
-  },
-
-  /* DESTAQUES */
   highlightCard: {
     marginBottom: 14,
     borderRadius: 22,
@@ -271,13 +240,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.08)",
   },
-  highlightImage: {
-    width: "100%",
-    height: 160,
-  },
-  highlightBody: {
-    padding: 14,
-  },
+  highlightImage: { width: "100%", height: 160 },
+  highlightBody: { padding: 14 },
   highlightTitle: {
     fontSize: 15,
     fontWeight: "600",
@@ -289,30 +253,5 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "rgba(255,255,255,0.55)",
   },
-
-  /* TRENDS */
-  trendBlock: {
-    marginBottom: 18,
-  },
-  trendHeader: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#FFF",
-    marginBottom: 10,
-  },
-  trendItem: {
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.08)",
-  },
-  trendItemText: {
-    fontSize: 14,
-    color: "#FFF",
-    lineHeight: 18,
-  },
-  trendItemMeta: {
-    fontSize: 12,
-    marginTop: 4,
-    color: "rgba(255,255,255,0.45)",
-  },
 });
+
