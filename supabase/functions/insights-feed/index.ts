@@ -1,4 +1,3 @@
-// supabase/functions/insights-feed/index.ts
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -10,63 +9,57 @@ type InsightRow = {
   image_url: string | null;
   category: string | null;
   impact_level: "low" | "medium" | "high" | null;
-  published_at: string;
+  impact_score: number;
+  published_at: string | null;
 };
 
 serve(async (req) => {
   try {
-    // 🔐 Auth obrigatória (anon funciona)
     const authHeader = req.headers.get("authorization");
-    if (!authHeader) {
+    if (!authHeader)
       return new Response(
         JSON.stringify({ error: "Missing authorization header" }),
         { status: 401 }
       );
-    }
 
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      {
-        global: {
-          headers: {
-            Authorization: authHeader,
-          },
-        },
-      }
-    );
+    const url = new URL(req.url);
+    const limitParam = Number(url.searchParams.get("limit") || 20);
 
-    // -----------------------------
-    // Buscar insights publicados
-    // -----------------------------
-    const { data, error } = await supabase
-      .from("insights")
-      .select(`
-        id,
-        title,
-        summary,
-        link,
-        image_url,
-        category,
-        impact_level,
-        published_at
-      `)
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+    const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY)
+      throw new Error("Missing Supabase env variables");
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+
+    let query = supabase
+      .from("insight_items")
+      .select("*")
+      .order("impact_score", { ascending: false })
       .order("published_at", { ascending: false })
-      .limit(50);
+      .limit(limitParam);
 
-    if (error) {
-      console.error("DB error:", error);
-      throw error;
-    }
+    const { data, error } = await query;
+    if (error) throw error;
 
-    const rows: InsightRow[] = data ?? [];
+    const rows: InsightRow[] = (data ?? []).map((row: any) => {
+      const published = row.published_at
+        ? new Date(row.published_at)
+        : new Date();
 
-    // -----------------------------
-    // Hero (primeiro de alto impacto)
-    // -----------------------------
-    const heroRow =
-      rows.find((r) => r.impact_level === "high") ?? rows[0] ?? null;
+      const impact_score = row.impact_score ?? 5;
+      let impact_level: "low" | "medium" | "high" = "low";
+      if (impact_score >= 8) impact_level = "high";
+      else if (impact_score >= 5) impact_level = "medium";
 
+      return { ...row, impact_score, impact_level, published_at: published.toISOString() };
+    });
+
+    // --- Hero automático pelo maior impact_score ---
+    const heroRow = rows.reduce(
+      (prev, curr) => (curr.impact_score > (prev?.impact_score ?? 0) ? curr : prev),
+      rows[0] || null
+    );
     const hero = heroRow
       ? {
           id: heroRow.id,
@@ -75,21 +68,18 @@ serve(async (req) => {
           description: heroRow.summary ?? "",
           imageUrl: heroRow.image_url ?? undefined,
           url: heroRow.link ?? undefined,
-          category: heroRow.category ?? "Geral",
+          category: heroRow.category?.toLowerCase() ?? "geral",
           impactLevel: heroRow.impact_level,
+          impactScore: heroRow.impact_score,
           publishedAt: heroRow.published_at,
         }
       : null;
 
-    // -----------------------------
-    // Agrupar por categoria
-    // -----------------------------
+    // --- Agrupamento por categoria com normalização ---
     const categories: Record<string, any[]> = {};
-
     rows.forEach((row) => {
-      const cat = row.category ?? "Geral";
+      const cat = row.category?.toLowerCase() ?? "geral";
       if (!categories[cat]) categories[cat] = [];
-
       categories[cat].push({
         id: row.id,
         title: row.title,
@@ -98,37 +88,26 @@ serve(async (req) => {
         url: row.link ?? undefined,
         category: cat,
         impactLevel: row.impact_level,
-        impactScore:
-          row.impact_level === "high"
-            ? 3
-            : row.impact_level === "medium"
-            ? 2
-            : 1,
+        impactScore: row.impact_score,
         publishedAt: row.published_at,
       });
     });
 
-    // -----------------------------
-    // Resposta FINAL
-    // -----------------------------
+    console.log("LOG  Hero:", hero);
+    console.log("LOG  Categories:", categories);
+
+    const nextCursor = rows.length > 0 ? rows[rows.length - 1].published_at : null;
+
     return new Response(
-      JSON.stringify({
-        hero,
-        categories,
-        nextCursor: null,
-      }),
-      {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }
+      JSON.stringify({ hero, categories, nextCursor }),
+      { status: 200, headers: { "Content-Type": "application/json" } }
     );
   } catch (err) {
-    console.error("insights-feed error:", err);
-
+    console.error("insights-feed fatal error:", err);
     return new Response(
       JSON.stringify({
         error: "Internal error",
-        details: String(err),
+        details: err instanceof Error ? err.message : JSON.stringify(err),
       }),
       { status: 500 }
     );
