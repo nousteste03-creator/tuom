@@ -1,113 +1,179 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+import {
+  getTimeWeight,
+  getSourceWeight,
+  getCategoryWeight,
+  getFrequencyWeight,
+  generateTrendKey,
+} from "./_heuristics.ts";
+
+import { calculateImpactScore } from "./_impact.ts";
+
 type InsightRow = {
   id: string;
-  title: string;
+  title: string | null;
   summary: string | null;
   link: string | null;
   image_url: string | null;
   category: string | null;
-  impact_level: "low" | "medium" | "high" | null;
-  impact_score: number;
   published_at: string | null;
 };
 
 serve(async (req) => {
   try {
+    // -----------------------------
+    // Auth (mantido)
+    // -----------------------------
     const authHeader = req.headers.get("authorization");
-    if (!authHeader)
-      return new Response(
-        JSON.stringify({ error: "Missing authorization header" }),
-        { status: 401 }
-      );
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+      });
+    }
 
+    // -----------------------------
+    // Params
+    // -----------------------------
     const url = new URL(req.url);
-    const limitParam = Number(url.searchParams.get("limit") || 20);
+    const limit = Math.min(Number(url.searchParams.get("limit") || 20), 50);
+    const offset = Number(url.searchParams.get("offset") || 0);
 
-    const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-    const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY)
-      throw new Error("Missing Supabase env variables");
+    // -----------------------------
+    // Supabase
+    // -----------------------------
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
 
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
-
-    let query = supabase
+    // -----------------------------
+    // Fetch
+    // -----------------------------
+    const { data, error } = await supabase
       .from("insight_items")
       .select("*")
-      .order("impact_score", { ascending: false })
       .order("published_at", { ascending: false })
-      .limit(limitParam);
+      .range(offset, offset + limit - 1);
 
-    const { data, error } = await query;
     if (error) throw error;
 
-    const rows: InsightRow[] = (data ?? []).map((row: any) => {
-      const published = row.published_at
-        ? new Date(row.published_at)
-        : new Date();
+    // -----------------------------
+    // Normalização + Heurísticas
+    // -----------------------------
+    const now = new Date();
 
-      const impact_score = row.impact_score ?? 5;
-      let impact_level: "low" | "medium" | "high" = "low";
-      if (impact_score >= 8) impact_level = "high";
-      else if (impact_score >= 5) impact_level = "medium";
+    const items = (data ?? []).map((row: InsightRow) => {
+      // 🔒 published_at seguro
+      const publishedAt =
+        row.published_at && !isNaN(Date.parse(row.published_at))
+          ? new Date(row.published_at)
+          : now;
 
-      return { ...row, impact_score, impact_level, published_at: published.toISOString() };
+      // 🔒 title nunca nulo
+      const safeTitle = row.title?.trim() || "Insight";
+
+      // 🔒 pesos 100% seguros (MVP)
+      const timeWeight = getTimeWeight(publishedAt.toISOString());
+      const sourceWeight = getSourceWeight({ impact_default: 0.6 });
+      const categoryWeight = getCategoryWeight(row.category);
+      const frequencyWeight = getFrequencyWeight(1);
+
+      const impactScore = calculateImpactScore({
+        time: timeWeight,
+        source: sourceWeight,
+        category: categoryWeight,
+        frequency: frequencyWeight,
+      });
+
+      const impactLevel: "low" | "medium" | "high" =
+        impactScore >= 70 ? "high" : impactScore >= 40 ? "medium" : "low";
+
+      const priorityScore = Math.round(impactScore * 10 + timeWeight * 10);
+
+      return {
+        id: row.id,
+        title: safeTitle,
+        summary: row.summary,
+        imageUrl: row.image_url ?? undefined,
+        url: row.link ?? undefined,
+        category: row.category?.toLowerCase() ?? "geral",
+        impactScore,
+        impactLevel,
+        priorityScore,
+        publishedAt: publishedAt.toISOString(),
+        trendKey: generateTrendKey(safeTitle),
+      };
     });
 
-    // --- Hero automático pelo maior impact_score ---
-    const heroRow = rows.reduce(
-      (prev, curr) => (curr.impact_score > (prev?.impact_score ?? 0) ? curr : prev),
-      rows[0] || null
-    );
-    const hero = heroRow
+    // -----------------------------
+    // Ordenação final
+    // -----------------------------
+    items.sort((a, b) => b.priorityScore - a.priorityScore);
+
+    // -----------------------------
+    // Hero automático
+    // -----------------------------
+    const heroCandidate =
+      items.find(
+        (i) =>
+          i.impactLevel === "high" &&
+          Date.now() - new Date(i.publishedAt).getTime() <=
+            24 * 60 * 60 * 1000
+      ) ?? items[0] ?? null;
+
+    const hero = heroCandidate
       ? {
-          id: heroRow.id,
-          title: heroRow.title,
-          subtitle: heroRow.summary ?? "",
-          description: heroRow.summary ?? "",
-          imageUrl: heroRow.image_url ?? undefined,
-          url: heroRow.link ?? undefined,
-          category: heroRow.category?.toLowerCase() ?? "geral",
-          impactLevel: heroRow.impact_level,
-          impactScore: heroRow.impact_score,
-          publishedAt: heroRow.published_at,
+          id: heroCandidate.id,
+          title: heroCandidate.title,
+          description: heroCandidate.summary ?? "",
+          imageUrl: heroCandidate.imageUrl,
+          url: heroCandidate.url,
+          category: heroCandidate.category,
+          impactLevel: heroCandidate.impactLevel,
+          impactScore: heroCandidate.impactScore,
+          publishedAt: heroCandidate.publishedAt,
         }
       : null;
 
-    // --- Agrupamento por categoria com normalização ---
-    const categories: Record<string, any[]> = {};
-    rows.forEach((row) => {
-      const cat = row.category?.toLowerCase() ?? "geral";
-      if (!categories[cat]) categories[cat] = [];
-      categories[cat].push({
-        id: row.id,
-        title: row.title,
-        description: row.summary ?? "",
-        imageUrl: row.image_url ?? undefined,
-        url: row.link ?? undefined,
-        category: cat,
-        impactLevel: row.impact_level,
-        impactScore: row.impact_score,
-        publishedAt: row.published_at,
-      });
-    });
+    // Remove hero da lista
+    const listItems = hero
+      ? items.filter((i) => i.id !== hero.id)
+      : items;
 
-    console.log("LOG  Hero:", hero);
-    console.log("LOG  Categories:", categories);
-
-    const nextCursor = rows.length > 0 ? rows[rows.length - 1].published_at : null;
-
-    return new Response(
-      JSON.stringify({ hero, categories, nextCursor }),
-      { status: 200, headers: { "Content-Type": "application/json" } }
+    // -----------------------------
+    // Categories metadata
+    // -----------------------------
+    const categories = Array.from(
+      new Set(listItems.map((i) => i.category))
     );
-  } catch (err) {
-    console.error("insights-feed fatal error:", err);
+
+    // -----------------------------
+    // Response
+    // -----------------------------
     return new Response(
       JSON.stringify({
-        error: "Internal error",
-        details: err instanceof Error ? err.message : JSON.stringify(err),
+        meta: {
+          limit,
+          offset,
+          hasMore: listItems.length === limit,
+          categories,
+        },
+        hero,
+        items: listItems,
+      }),
+      {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
+  } catch (err) {
+    console.error("insights-feed error:", err);
+    return new Response(
+      JSON.stringify({
+        error: "Internal server error",
+        details: err instanceof Error ? err.message : String(err),
       }),
       { status: 500 }
     );

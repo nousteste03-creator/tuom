@@ -1,213 +1,96 @@
-// components/app/insights/InsightsScreen.tsx
-import React, { useMemo, useCallback } from "react";
+import React from "react";
 import {
   View,
-  Text,
+  FlatList,
   StyleSheet,
-  ScrollView,
-  StatusBar,
-  TouchableOpacity,
-  Image,
+  RefreshControl,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { router } from "expo-router";
 
-import { useInsights, InsightItem } from "@/hooks/useInsights";
+import { useInsightsFeed } from "@/hooks/useInsightsFeed";
 
-/* ---------------- Helper ---------------- */
-function formatTimeAgo(publishedAt?: string) {
-  if (!publishedAt) return "";
-  const t = new Date(publishedAt).getTime();
-  if (Number.isNaN(t)) return "";
-  const diffMin = Math.floor((Date.now() - t) / 60000);
-  if (diffMin < 1) return "agora";
-  if (diffMin < 60) return `${diffMin}min`;
-  const h = Math.floor(diffMin / 60);
-  const d = Math.floor(h / 24);
-  if (d >= 1) return `${d}d`;
-  return `${h}h`;
-}
+import VideoHeroInsight from "./VideoHeroInsight";
+import InsightCard from "./InsightCard";
+import CategoryFilters from "./CategoryFilters";
 
-/* ---------------- Screen ---------------- */
-export default function InsightsScreen() {
-  const insets = useSafeAreaInsets();
+import LoadingCard from "./states/LoadingCard";
+import EmptyState from "./states/EmptyState";
 
-  const { loading, insightOfDay, today, highlights, trends, error } =
-    useInsights();
-
-  const isEmpty = !loading && today.length === 0 && highlights.length === 0;
-
-  const headerSubtitle = useMemo(
-    () => "Atualizações globais • Curadoria TUÖM",
-    []
-  );
-
-  const openNews = useCallback((item: InsightItem) => {
-    router.push({
-      pathname: "/insights/news/[id]",
-      params: {
-        id: encodeURIComponent(item.id),
-        title: item.title,
-        source: item.source,
-        imageUrl: item.imageUrl,
-        url: item.url,
-        publishedAt: item.publishedAt,
-        description: item.subtitle || item.description || "",
-      },
-    });
-  }, []);
-
-  const renderInsightCard = (item: InsightItem) => {
-    // LOG para debug de URL
-    console.log("Renderizando card, imageUrl:", item.imageUrl);
-
-    return (
-      <TouchableOpacity
-        activeOpacity={0.9}
-        style={styles.highlightCard}
-        onPress={() => openNews(item)}
-      >
-        {item.imageUrl ? (
-          <Image
-            source={{ uri: item.imageUrl }}
-            style={styles.highlightImage}
-          />
-        ) : (
-          <View style={[styles.highlightImage, { backgroundColor: "#222" }]}>
-            <Text style={{ color: "#888", textAlign: "center", marginTop: 70 }}>
-              Sem imagem
-            </Text>
-          </View>
-        )}
-        <View style={styles.highlightBody}>
-          <Text style={styles.highlightTitle} numberOfLines={2}>
-            {item.title}
-          </Text>
-          <Text style={styles.highlightMeta}>
-            {(item.source || "TUÖM") + " • " + formatTimeAgo(item.publishedAt)}
-          </Text>
-        </View>
-      </TouchableOpacity>
-    );
-  };
+const InsightsScreen = () => {
+  const {
+    items,
+    categories,
+    loading,
+    selectedCategory,
+    setSelectedCategory,
+    refresh,
+  } = useInsightsFeed();
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
-      <ScrollView
+      <FlatList
+        data={items}
+        keyExtractor={(item, index) => item?.id ?? String(index)}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 14 }]}
-      >
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Insights</Text>
-          <Text style={styles.headerSubtitle}>{headerSubtitle}</Text>
-        </View>
+        refreshControl={
+          <RefreshControl
+            refreshing={loading}
+            onRefresh={refresh}
+            tintColor="#fff"
+          />
+        }
+        ListHeaderComponent={
+          <>
+            <VideoHeroInsight />
+            <CategoryFilters
+              categories={categories}
+              selected={selectedCategory}
+              onChange={setSelectedCategory}
+            />
+          </>
+        }
+        ListEmptyComponent={
+          loading ? (
+            <>
+              <LoadingCard />
+              <LoadingCard />
+              <LoadingCard />
+            </>
+          ) : (
+            <EmptyState />
+          )
+        }
+        renderItem={({ item }) => {
+          if (!item) return null;
 
-        {/* HERO */}
-        {insightOfDay && (
-          <View style={styles.insightCard}>
-            {insightOfDay.imageUrl ? (
-              <Image
-                source={{ uri: insightOfDay.imageUrl }}
-                style={styles.heroImage}
-              />
-            ) : (
-              <View style={[styles.heroImage, { backgroundColor: "#222" }]}>
-                <Text style={{ color: "#888", textAlign: "center", marginTop: 90 }}>
-                  Sem imagem
-                </Text>
-              </View>
-            )}
-            <Text style={styles.insightLabel}>Destaque do dia</Text>
-            <Text style={styles.insightTitle}>{insightOfDay.title}</Text>
-            <Text style={styles.insightBody}>{insightOfDay.subtitle}</Text>
-          </View>
-        )}
-
-        {/* LOADING / EMPTY */}
-        {loading && <Text style={styles.loadingText}>Carregando insights…</Text>}
-        {!loading && isEmpty && (
-          <Text style={styles.loadingText}>Nenhuma atualização disponível.</Text>
-        )}
-        {error && <Text style={styles.loadingText}>Erro: {error}</Text>}
-
-        {/* HOJE */}
-        {!loading && today.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Hoje</Text>
-            {today.map((item) => (
-              <View key={`today-${item.id}`}>{renderInsightCard(item)}</View>
-            ))}
-          </View>
-        )}
-
-        {/* DESTAQUES */}
-        {!loading && highlights.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Destaques</Text>
-            {highlights.map((item) => (
-              <View key={`highlight-${item.id}`}>{renderInsightCard(item)}</View>
-            ))}
-          </View>
-        )}
-
-        {/* TRENDS / CATEGORIAS */}
-        {!loading &&
-          trends.map((group) => (
-            <View key={`trend-${group.category}`} style={styles.section}>
-              <Text style={styles.sectionTitle}>{group.category}</Text>
-              {group.articles.map((item) => (
-                <View key={`trend-${group.category}-${item.id}`}>
-                  {renderInsightCard(item)}
-                </View>
-              ))}
-            </View>
-          ))}
-
-        <View style={{ height: 48 }} />
-      </ScrollView>
+          return (
+            <InsightCard
+              data={{
+                title: item.title,
+                image: item.image,
+                category: item.category,
+                impactLevel: item.impactLevel,
+                publishedAt: item.publishedAt,
+              }}
+            />
+          );
+        }}
+        contentContainerStyle={styles.content}
+        initialNumToRender={6}
+        maxToRenderPerBatch={6}
+        windowSize={7}
+      />
     </View>
   );
-}
+};
 
-/* ---------------- Styles ---------------- */
+export default InsightsScreen;
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0B0B0D" },
-  scroll: { paddingHorizontal: 20, paddingBottom: 40 },
-  header: { alignItems: "center", marginBottom: 20 },
-  headerTitle: { fontSize: 28, color: "#FFF", fontWeight: "700" },
-  headerSubtitle: { fontSize: 13, color: "rgba(255,255,255,0.55)", marginTop: 6 },
-  loadingText: {
-    color: "rgba(255,255,255,0.55)",
-    fontSize: 13,
-    textAlign: "center",
-    marginVertical: 12,
+  container: {
+    flex: 1,
+    backgroundColor: "#000",
   },
-  insightCard: {
-    borderRadius: 22,
-    padding: 18,
-    backgroundColor: "rgba(255,255,255,0.06)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
-    marginBottom: 28,
+  content: {
+    paddingBottom: 32,
   },
-  heroImage: { width: "100%", height: 200, borderRadius: 22, marginBottom: 12 },
-  insightLabel: { fontSize: 12, color: "rgba(255,255,255,0.55)", marginBottom: 6 },
-  insightTitle: { fontSize: 17, fontWeight: "600", color: "#FFF" },
-  insightBody: { fontSize: 14, color: "rgba(255,255,255,0.75)", marginTop: 6, lineHeight: 19 },
-  section: { marginBottom: 30 },
-  sectionTitle: { fontSize: 18, fontWeight: "600", color: "#FFF", marginBottom: 14 },
-  highlightCard: {
-    marginBottom: 14,
-    borderRadius: 22,
-    overflow: "hidden",
-    backgroundColor: "rgba(255,255,255,0.035)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-  },
-  highlightImage: { width: "100%", height: 160 },
-  highlightBody: { padding: 14 },
-  highlightTitle: { fontSize: 15, fontWeight: "600", color: "#FFF", lineHeight: 20 },
-  highlightMeta: { marginTop: 8, fontSize: 12, color: "rgba(255,255,255,0.55)" },
 });
-
