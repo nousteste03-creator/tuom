@@ -1,11 +1,16 @@
-import React, { useRef } from "react";
+import React, { useRef, useEffect } from "react";
 import { View, StyleSheet } from "react-native";
 import { Video, ResizeMode } from "expo-av";
 
 const HERO_VIDEO = require("../../../assets/video/insights-hero.mp4");
+const HERO_POSTER = require("../../../assets/video/insights-hero-poster.png");
 
 const VideoHeroInsight = () => {
   const videoRef = useRef<Video>(null);
+
+  useEffect(() => {
+    videoRef.current?.playAsync();
+  }, []);
 
   return (
     <View style={styles.container}>
@@ -15,16 +20,10 @@ const VideoHeroInsight = () => {
         style={StyleSheet.absoluteFill}
         resizeMode={ResizeMode.COVER}
         shouldPlay
-        isLooping={false}
-        onPlaybackStatusUpdate={(status) => {
-          if (
-            status.isLoaded &&
-            status.didJustFinish &&
-            videoRef.current
-          ) {
-            videoRef.current.pauseAsync(); // congela no último frame
-          }
-        }}
+        isLooping
+        isMuted
+        posterSource={HERO_POSTER}
+        usePoster
       />
     </View>
   );

@@ -78,7 +78,7 @@ export default function SubscriptionDetailScreen() {
         .single();
 
       if (error) {
-        console.log("ERROR LOADING SUBSCRIPTION DETAIL:", error);
+        error("ERROR LOADING SUBSCRIPTION DETAIL:", error);
         setSubscription(null);
       } else {
         setSubscription(data as Subscription);

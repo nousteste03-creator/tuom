@@ -261,7 +261,7 @@ export default function CreateGoalModal({ visible, onClose }: Props) {
       endDate: normalized,
     };
 
-    console.log("DEBUG/CreateGoalModal payload:", payload);
+    log("CreateGoalModal payload:", payload);
 
     const id = await createGoal(payload);
 

@@ -14,7 +14,10 @@ import { registerDeviceForPush } from "@/lib/notifications/registerDevice";
 // ✅ LGPD — sync de aceite versionado
 import { syncLegalAcceptance } from "@/lib/bootstrap/syncLegalAcceptance";
 
-// 🔐 Contexts globais (mantidos)
+// 🔥 PRELOAD CRÍTICO (Insights)
+import { preloadInsightsAssets } from "@/lib/bootstrap/preloadAssets";
+
+// 🔐 Contexts globais
 import { UserPlanProvider } from "@/context/UserPlanContext";
 import { UserSettingsProvider } from "@/context/UserSettingsContext";
 import { BudgetProvider } from "@/context/BudgetContext";
@@ -34,47 +37,75 @@ export default function RootLayout() {
   /**
    * -----------------------------------------------------
    * BOOTSTRAP DE NOTIFICAÇÕES (FASE 2)
-   * Executa APENAS se houver usuário autenticado
+   * Reage a sessão atual E a mudanças de auth
    * -----------------------------------------------------
    */
   useEffect(() => {
-    const bootstrapNotifications = async () => {
-      const { data, error } = await supabase.auth.getSession();
+    let unsubscribe: (() => void) | undefined;
 
-      if (error) {
-        console.warn("[bootstrap] session error:", error.message);
-        return;
-      }
-
-      const user = data.session?.user;
-      if (!user) return;
-
+    const runBootstrap = async (userId: string) => {
       try {
         // 1️⃣ garante user_settings (idempotente)
-        await ensureUserSettings(user.id);
+        await ensureUserSettings(userId);
 
         // 2️⃣ garante aceite LGPD versionado (idempotente)
-        await syncLegalAcceptance(user.id);
+        await syncLegalAcceptance(userId);
 
-        // 3️⃣ registra device para push
+        // 3️⃣ registra device para push (idempotente no backend)
         await registerDeviceForPush();
       } catch (err) {
         console.error("[bootstrap] notifications error:", err);
       }
     };
 
-    bootstrapNotifications();
+    const init = async () => {
+      // 👉 caso o usuário já esteja logado
+      const { data } = await supabase.auth.getSession();
+      const user = data.session?.user;
+      if (user) {
+        runBootstrap(user.id);
+      }
+
+      // 👉 reage a login/logout futuros
+      const { data: listener } = supabase.auth.onAuthStateChange(
+        (_event, session) => {
+          const user = session?.user;
+          if (user) {
+            runBootstrap(user.id);
+          }
+        }
+      );
+
+      unsubscribe = () => {
+        listener.subscription.unsubscribe();
+      };
+    };
+
+    init();
+
+    return () => {
+      unsubscribe?.();
+    };
   }, []);
 
   /**
    * -----------------------------------------------------
-   * BOOTSTRAP TÉCNICO DO APP
+   * BOOTSTRAP TÉCNICO DO APP (Camada 1)
    * -----------------------------------------------------
    */
   useEffect(() => {
     const prepareApp = async () => {
-      await new Promise((resolve) => setTimeout(resolve, 1400));
-      setIsAppReady(true);
+      try {
+        // 🔥 preload crítico (hero + poster + fallback)
+        await preloadInsightsAssets();
+
+        // ⏳ tempo mínimo de splash (UX estável)
+        await new Promise((resolve) => setTimeout(resolve, 900));
+      } catch (err) {
+        console.warn("[bootstrap] preload error:", err);
+      } finally {
+        setIsAppReady(true);
+      }
     };
 
     prepareApp();
@@ -102,7 +133,7 @@ export default function RootLayout() {
                   animationDuration: 220,
                   gestureEnabled: true,
 
-                  // ✅ FUNDO SEMPRE PRETO (sem transparência)
+                  // ✅ FUNDO SEMPRE PRETO
                   contentStyle: {
                     backgroundColor: "#000000",
                   },

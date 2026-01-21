@@ -10,7 +10,10 @@ import {
 const FALLBACK_IMAGE: ImageSourcePropType =
   require("../../../assets/images/insights-fallback.png");
 
+type Variant = "normal" | "featured";
+
 interface InsightCardProps {
+  variant?: Variant;
   data: {
     title: string;
     image: ImageSourcePropType;
@@ -20,31 +23,44 @@ interface InsightCardProps {
   };
 }
 
-const InsightCard = ({ data }: InsightCardProps) => {
+const InsightCard = ({
+  data,
+  variant = "normal",
+}: InsightCardProps) => {
   const [imageSource, setImageSource] =
     useState<ImageSourcePropType>(FALLBACK_IMAGE);
 
-  // mantém a imagem sincronizada quando o item muda
   useEffect(() => {
     if (data?.image) setImageSource(data.image);
   }, [data]);
 
   return (
-    <View style={styles.container}>
+    <View
+      style={[
+        styles.container,
+        variant === "featured" && styles.featuredContainer,
+      ]}
+    >
       <Image
         source={imageSource}
-        style={styles.image}
+        style={[
+          styles.image,
+          variant === "featured" && styles.featuredImage,
+        ]}
         resizeMode="cover"
         onError={() => setImageSource(FALLBACK_IMAGE)}
       />
 
       <View style={styles.text}>
-        <Text style={styles.title} numberOfLines={2} ellipsizeMode="tail">
+        <Text
+          style={styles.title}
+          numberOfLines={variant === "featured" ? 3 : 2}
+        >
           {data.title}
         </Text>
 
         <View style={styles.metaRow}>
-          <Text style={styles.category}>{data.category.toUpperCase()}</Text>
+          <Text style={styles.category}>{data.category}</Text>
           <Text style={styles.dot}>•</Text>
           <Text style={styles.impact}>{data.impactLevel}</Text>
         </View>
@@ -63,11 +79,23 @@ const styles = StyleSheet.create({
     gap: 14,
   },
 
+  featuredContainer: {
+    paddingVertical: 22,
+    borderBottomWidth: 1,
+    borderBottomColor: "#111",
+  },
+
   image: {
     width: 84,
     height: 84,
     borderRadius: 10,
     backgroundColor: "#111",
+  },
+
+  featuredImage: {
+    width: 120,
+    height: 120,
+    borderRadius: 14,
   },
 
   text: {
@@ -92,7 +120,7 @@ const styles = StyleSheet.create({
   category: {
     color: "#aaa",
     fontSize: 12,
-    letterSpacing: 0.5,
+    letterSpacing: 0.4,
   },
 
   dot: {
