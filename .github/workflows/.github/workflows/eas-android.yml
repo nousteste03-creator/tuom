@@ -1,0 +1,36 @@
+name: EAS Build Android
+
+on:
+  push:
+    branches:
+      - feat/insights-hj
+      - main
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Expo & EAS CLI
+        run: npm install -g expo eas-cli
+
+      - name: Authenticate with Expo
+        run: expo whoami
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Build Android with EAS
+        run: eas build -p android --non-interactive
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
