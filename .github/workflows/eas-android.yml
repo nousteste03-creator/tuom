@@ -32,6 +32,6 @@ jobs:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
       - name: Build Android with EAS
-        run: eas build -p android --non-interactive
+        run: EAS_NO_VCS=1 eas build -p android --non-interactive
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
